@@ -289,7 +289,8 @@
     const p = App.profile();
     const st = { title: idea.title, variant: idea.branch && E.variantOf(p, idea.branch) ? idea.branch : (p.styleVariants[0] || {}).id, moods: [], clean: false,
       lyrics: E.skeleton(p, idea), style: '' };
-    st.style = E.buildStyle(p, st.variant, st.moods);
+    const avoid = E.styleAvoid(p); const roll = () => { const g = E.genStyle(p, avoid); st.base = g.style; st.moods = []; st.style = g.style; st.styleName = g.name; st.sig = g.sig; avoid.unshift(g.sig); };
+    roll();
     openSheet('Pakiet dla Suno', (render) => {
       const styleTa = h('textarea', { rows: 7, value: st.style, oninput: (e) => { st.style = e.target.value; } });
       const lyrTa = h('textarea', { rows: 14, class: 'lyr', value: st.lyrics, oninput: (e) => { st.lyrics = e.target.value; scanBox(); } });
@@ -306,9 +307,10 @@
       const empty = /\[(Intro|Verse \d|Pre-Chorus|Bridge|Outro)\]\s*\n\s*\n/.test(st.lyrics);
       return h('div', { class: 'stack' },
         field('Tytuł', h('input', { value: st.title, oninput: (e) => { st.title = e.target.value; } }), h('span', { class: 'count' }, 'wklej w pole Song Title')),
-        h('div', null, h('span', { class: 'flabel' }, 'Gałąź stylu'), h('div', { class: 'chips' }, p.styleVariants.map((v) => chip(v.name, st.variant === v.id, () => { st.variant = v.id; st.style = E.buildStyle(p, st.variant, st.moods); render(); })))),
+        h('div', null, h('span', { class: 'flabel' }, 'Styl wylosowany pod ten kanał: ' + st.styleName), h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: () => { roll(); render(); } }, icon('spark', 18), 'Losuj inny styl'))),
+        h('div', null, h('span', { class: 'flabel' }, 'Albo wzorzec z kanału'), h('div', { class: 'chips' }, p.styleVariants.map((v) => chip(v.name, st.variant === v.id && st.styleName === v.name, () => { st.variant = v.id; st.styleName = v.name; st.sig = [v.name]; st.base = E.buildStyle(p, st.variant, []); st.moods = []; st.style = st.base; render(); })))),
         p.styleVariants.find((v) => v.id === st.variant) ? h('p', { class: 'muted small' }, p.styleVariants.find((v) => v.id === st.variant).note) : null,
-        h('div', null, h('span', { class: 'flabel' }, 'Dopasuj brzmienie'), h('div', { class: 'chips' }, App.DATA.moods.map((m) => chip(m.n, st.moods.includes(m.id), () => { st.moods = st.moods.includes(m.id) ? st.moods.filter((x) => x !== m.id) : st.moods.concat(m.id); st.style = E.buildStyle(p, st.variant, st.moods); render(); })))),
+        h('div', null, h('span', { class: 'flabel' }, 'Dopasuj brzmienie'), h('div', { class: 'chips' }, App.DATA.moods.map((m) => chip(m.n, st.moods.includes(m.id), () => { st.moods = st.moods.includes(m.id) ? st.moods.filter((x) => x !== m.id) : st.moods.concat(m.id); st.style = [st.base].concat(st.moods.map((id) => (App.DATA.moods.find((x) => x.id === id) || {}).en)).filter(Boolean).join(', '); render(); })))),
         field('Styl (Styles)', styleTa, [counter(styleTa, 1000), copyBtn(() => st.style, 'Styl')]),
         field('Tekst (Lyrics)', lyrTa, [counter(lyrTa, 5000), copyBtn(() => st.lyrics, 'Tekst')]),
         empty ? h('p', { class: 'hint' }, 'Zwrotki są puste. Refren i hasło gotowe. Dopisz zwrotki albo wygeneruj cały tekst poniżej.') : null,
@@ -318,7 +320,7 @@
           h('button', { class: 'btn ghost', onclick: () => copy(E.chatPrompt(p, Object.assign({}, idea, { title: st.title }), st.variant, st.clean), 'Prompt skopiowany. Wklej go do dowolnego czatu AI.') }, icon('copy', 18), 'Kopiuj prompt do czatu')),
         h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: st.clean, onchange: (e) => { st.clean = e.target.checked; } }), h('span', null, 'Czysta wersja bez wulgaryzmów w prompcie')),
         h('button', { class: 'btn big', onclick: () => {
-          const s = { id: App.uid('song'), profileId: p.id, title: st.title, premise: idea.premise, variantId: st.variant, style: st.style, lyrics: st.lyrics, symbol: idea.symbol, scenes: idea.scenes || [], status: 'suno', created: Date.now(), checks: {}, results: {} };
+          const s = { id: App.uid('song'), profileId: p.id, title: st.title, premise: idea.premise, variantId: st.variant, styleName: st.styleName, styleSig: st.sig, style: st.style, lyrics: st.lyrics, symbol: idea.symbol, scenes: idea.scenes || [], status: 'suno', created: Date.now(), checks: {}, results: {} };
           App.state.songs.push(s); App.save(); closeSheet(); toast('Zapisano w Utworach'); App.state.ui = {}; UI.go('songs');
         } }, 'Zapisz utwór'));
     });

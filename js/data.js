@@ -106,7 +106,7 @@
       usedSymbols: ['dress on a clothesline', 'paper on a table', 'open window', 'pier at dusk']
     },
     styleVariants: [
-      { id: 'ballad', name: 'Wolna ballada', note: 'Z Twojego screena: fortepian, miotełki, pedal steel. Najpełniejszy wariant.',
+      { id: 'ballad', name: 'Wolna ballada', note: 'Z Twojego screena: fortepian, miotełki, pedal steel. Wzorzec startowy.',
         style: 'slow country ballad, 70 bpm, piano and brushed drums, soft pedal steel, lots of space, intimate female vocal in front of the mix, clear diction, close-mic, no rap, no scream, no opera, no EDM, no auto-tune' },
       { id: 'sparse', name: 'Sparse, sama gitara', note: 'Z Twojego screena: solo gitara akustyczna, prawie bez perkusji.',
         style: 'sparse country, 66 bpm, solo acoustic guitar, room vocal, almost no drums, intimate female vocal in front of the mix, clear diction, close-mic, no rap, no scream, no opera, no EDM, no auto-tune' },
@@ -166,5 +166,23 @@
       { id: 'bass', n: 'Więcej basu', en: 'extra deep sub-bass' },
       { id: 'dark', n: 'Ciemniej', en: 'darker and more ominous' }
     ]
+  };
+
+  App.DATA.stylegen = {
+    melodia: {
+      genre: ['aggressive Polish hip-hop', 'extreme aggressive gangsta rap with heavy metal fusion', 'cinematic war trap', 'drill with orchestral strings', 'industrial rap metal', 'epic orchestral battle rap', 'dark phonk-trap hybrid', 'nu-metal rap', 'militaristic hip-hop', 'boom-bap with crushing metal guitars', 'gothic trap with church organ', 'rap metal war anthem'],
+      groove: ['slow crushing stomp groove, 72 bpm', 'heavyweight trap drums, 140 bpm half-time', 'militaristic marching snare, 98 bpm', 'pounding taiko and war drums, 84 bpm', 'driving double-time drums, 160 bpm', 'heavy halftime breakbeat, 90 bpm', 'rolling hi-hats and 808 slides, 130 bpm', 'slow menacing boom-bap, 80 bpm'],
+      lead: ['live orchestral low brass', 'ominous cellos and low strings', 'downtuned palm-muted guitar riffs', 'dark minor-key piano stabs', 'male choir chanting in Latin', 'distorted 808 sub-bass', 'detuned analog synth brass', 'church organ and heavy guitars', 'war horns and timpani', 'tense staccato violins', 'sparse menacing synths', 'cinematic risers and impacts'],
+      vocal: ['charismatic deep gritty male rap vocal, forceful clipped delivery', 'commanding male baritone rap-sung', 'fast aggressive double-time male flow', 'slow menacing half-spoken male delivery', 'raw shouted male vocal with melodic hook', 'dense internal rhymes, gritty male baritone'],
+      hook: ['massed vocal battle chant chorus', 'anthemic sung hook with gang vocals', 'stripped chorus, single voice over drums', 'call-and-response chorus'],
+      mix: ['dramatic beat drop before the hook', 'hard punchy modern mix', 'wide cinematic mix', 'raw gritty mix', 'polished professional club-ready production']
+    },
+    willa: {
+      genre: ['late night country ballad', 'sparse country', 'two-lane country', 'country waltz in 3/4', 'outlaw country shuffle', 'slow-burn country soul', 'americana porch song', 'honky-tonk heartbreak two-step', 'country-blues slow drag', 'alt-country noir', 'dusty desert country', 'country lullaby', 'gospel-tinged country'],
+      groove: ['slow, 62 bpm', 'slow, 70 bpm', 'mid-tempo, 88 bpm', 'mid-tempo shuffle, 96 bpm', 'faster, 108 bpm', 'brisk, 118 bpm', 'waltz time, 84 bpm'],
+      lead: ['piano', 'brushed drums', 'soft pedal steel', 'solo acoustic guitar', 'electric guitar with light tremolo', 'upright bass', 'fiddle', 'dobro', 'harmonica', 'Wurlitzer', 'fingerpicked banjo', 'lap steel', 'warm organ pad', 'mandolin', 'nylon-string guitar'],
+      rhythm: ['almost no drums', 'brushed drums', 'dry snare on 2 and 4', 'soft kick and rim click', 'stomp and clap, no drums', 'lots of space'],
+      vocal: ['intimate female vocal in front of the mix, clear diction, close-mic, no rap, no scream, no opera, no EDM, no auto-tune']
+    }
   };
 })();

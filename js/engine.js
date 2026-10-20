@@ -234,8 +234,37 @@
     const rated = songs.filter((s) => s.results && Number(s.results.views) > 0);
     if (rated.length < 2) return null;
     const by = {};
-    rated.forEach((s) => { const k = s.variantId || '?'; (by[k] = by[k] || []).push(s); });
-    const rows = Object.entries(by).map(([k, arr]) => ({ k, name: (E.variantOf(p, k) || {}).name || k, n: arr.length, avg: Math.round(arr.reduce((a, s) => a + Number(s.results.views), 0) / arr.length), subs: arr.reduce((a, s) => a + Number(s.results.subs || 0), 0) })).sort((a, b) => b.avg - a.avg);
+    rated.forEach((s) => { const k = s.styleName || s.variantId || '?'; (by[k] = by[k] || []).push(s); });
+    const rows = Object.entries(by).map(([k, arr]) => ({ k, name: (arr[0].styleName) || (E.variantOf(p, k) || {}).name || k, n: arr.length, avg: Math.round(arr.reduce((a, s) => a + Number(s.results.views), 0) / arr.length), subs: arr.reduce((a, s) => a + Number(s.results.subs || 0), 0) })).sort((a, b) => b.avg - a.avg);
     return rows;
   };
+
+  /* generator stylu: za każdym razem inny, bez powtórek z ostatnich utworów */
+  const rpick = (a) => a[Math.floor(Math.random() * a.length)];
+  const rsome = (a, n) => a.slice().sort(() => Math.random() - 0.5).slice(0, n);
+  E.genStyle = function (p, avoid) {
+    const g = (App.DATA.stylegen || {})[p.id];
+    if (!g) {
+      const v = rpick(p.styleVariants || [{ name: 'Styl', style: '' }]);
+      const extra = rsome(App.DATA.moods, 2);
+      return { name: v.name, style: [v.style].concat(extra.map((m) => m.en)).filter(Boolean).join(', '), sig: [v.name].concat(extra.map((m) => m.id)) };
+    }
+    const recent = (avoid || []).slice(0, 6);
+    let best = null, bestScore = 1e9;
+    for (let i = 0; i < 40; i++) {
+      const parts = { genre: rpick(g.genre), groove: rpick(g.groove), lead: rsome(g.lead, g.rhythm ? 2 : 2), rhythm: g.rhythm ? rpick(g.rhythm) : null, vocal: rpick(g.vocal), hook: g.hook ? rpick(g.hook) : null, mix: g.mix ? rpick(g.mix) : null };
+      const sig = [parts.genre, parts.groove].concat(parts.lead, parts.rhythm || [], parts.hook || []);
+      let sc = 0;
+      recent.forEach((r, idx) => { const w = 6 - idx; sig.forEach((x) => { if (r.includes(x)) sc += w * (x === parts.genre ? 3 : 1); }); });
+      if (sc < bestScore) { bestScore = sc; best = { parts, sig }; }
+      if (sc === 0) break;
+    }
+    const q = best.parts;
+    const lead = q.lead.join(', ');
+    const style = p.id === 'willa'
+      ? [q.genre, q.groove, lead, q.rhythm, q.vocal].filter(Boolean).join(', ')
+      : [q.genre, q.groove, lead, q.vocal, q.hook, q.mix].filter(Boolean).join(', ');
+    return { name: q.genre, style: style.slice(0, 1000), sig: best.sig };
+  };
+  E.styleAvoid = function (p) { return App.songsOf(p.id).slice().sort((a, b) => b.created - a.created).map((s) => s.styleSig).filter(Boolean); };
 })();
