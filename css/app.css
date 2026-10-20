@@ -203,3 +203,5 @@ h3.sec { padding: 0; } #ideaOut h3.sec { padding: 0 20px; margin-top: 22px; } .s
 .wz-nav { display: flex; justify-content: space-between; gap: 12px; position: sticky; bottom: 0; padding: 10px 0 4px; background: color-mix(in srgb, var(--bg2) 97%, transparent); border-top: 1px solid var(--line); margin: 0 -22px; padding-left: 22px; padding-right: 22px; } .wz-nav .btn { flex: 1; max-width: 48%; }
 .okbox { padding: 14px 16px; border-radius: 16px; background: color-mix(in srgb, var(--good) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--good) 40%, transparent); }
 .wz textarea[readonly] { opacity: .95; }
+
+input.secret{-webkit-text-security:disc;text-security:disc}

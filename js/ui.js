@@ -517,11 +517,11 @@
     const s = App.state.settings;
     openSheet('Ustawienia', () => h('div', { class: 'stack' },
       h('p', { class: 'muted' }, 'Klucze zostają w tej przeglądarce na tym urządzeniu. Nie trafiają do repozytorium ani na żaden serwer poza usługą, do której należą.'),
-      field('Klucz Gemini (darmowy, aistudio.google.com)', h('input', { type: 'password', value: s.gemini, autocomplete: 'off', placeholder: 'AIza…', oninput: (e) => { s.gemini = e.target.value.trim(); App.save(); } })),
+      field('Klucz Gemini (darmowy, aistudio.google.com)', h('input', { type: 'text', class: 'secret', name: 'rz-gemini', value: s.gemini, autocomplete: 'off', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', 'data-lpignore': 'true', placeholder: 'AIza…', oninput: (e) => { s.gemini = e.target.value.trim(); App.save(); } })),
       field('Model Gemini', h('input', { value: s.model, oninput: (e) => { s.model = e.target.value.trim(); App.save(); } })),
       field('Adres generatora obrazów (Cloudflare Worker)', h('input', { value: s.img || '', placeholder: 'https://…workers.dev/', oninput: (e) => { s.img = e.target.value.trim(); App.save(); } })),
       field('Google OAuth Client ID (wysyłka na YouTube)', h('input', { value: s.ytClient || '', placeholder: '…apps.googleusercontent.com', oninput: (e) => { s.ytClient = e.target.value.trim(); App.save(); } })),
-      field('Klucz YouTube Data API (opcjonalny)', h('input', { type: 'password', value: s.yt, autocomplete: 'off', placeholder: 'AIza…', oninput: (e) => { s.yt = e.target.value.trim(); App.save(); } })),
+      field('Klucz YouTube Data API (opcjonalny)', h('input', { type: 'text', class: 'secret', name: 'rz-yt', value: s.yt, autocomplete: 'off', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', 'data-lpignore': 'true', placeholder: 'AIza…', oninput: (e) => { s.yt = e.target.value.trim(); App.save(); } })),
       h('h3', { class: 'sec' }, 'Wersja aplikacji'),
       h('p', { class: 'muted small' }, 'Wersja ' + App.version + '. Jeśli po aktualizacji widzisz stare zachowanie, odśwież do najnowszej wersji. Twoje dane zostają.'),
       h('button', { class: 'btn ghost', onclick: async () => { try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map((r) => r.unregister())); const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } catch (e) { /* ignore */ } location.reload(); } }, icon('refresh', 18), 'Odśwież do najnowszej wersji'),
