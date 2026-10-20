@@ -253,20 +253,32 @@
     if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
     return new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'https://accounts.google.com/gsi/client'; el.onload = res; el.onerror = () => rej(new Error('Nie udało się połączyć z Google. Sprawdź internet.')); document.head.appendChild(el); });
   }
-  YT.login = async function () {
-    if (YT.token && Date.now() < YT.exp - 60000) return YT.token;
+  YT.login = async function (p) {
+    if (YT.token && Date.now() < YT.exp - 60000 && YT.pid === p.id) return YT.token;
+    YT.token = null;
     const cid = (App.state.settings.ytClient || '').trim();
     if (!cid) throw new Error('Wpisz Client ID Google w Ustawieniach. Instrukcja jest w README.');
     await loadGsi();
-    return new Promise((res, rej) => {
+    const token = await new Promise((res, rej) => {
       const tc = google.accounts.oauth2.initTokenClient({ client_id: cid, scope: 'https://www.googleapis.com/auth/youtube', prompt: 'select_account',
-        callback: (r) => { if (r.error) rej(new Error('Logowanie Google: ' + r.error)); else { YT.token = r.access_token; YT.exp = Date.now() + (r.expires_in || 3000) * 1000; res(YT.token); } },
+        callback: (r) => { if (r.error) rej(new Error('Logowanie Google: ' + r.error)); else res(r); },
         error_callback: (e) => rej(new Error('Logowanie przerwane' + (e && e.type ? ' (' + e.type + ')' : ''))) });
       tc.requestAccessToken();
     });
+    // sprawdź, na jaki kanał trafi film
+    const r = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', { headers: { Authorization: 'Bearer ' + token.access_token } });
+    if (!r.ok) throw new Error('Nie udało się sprawdzić kanału (' + r.status + ').');
+    const ch = ((await r.json()).items || [])[0];
+    if (!ch) throw new Error('To konto nie ma kanału YouTube. Wybierz w oknie Google właściwy kanał.');
+    const norm = (x) => (x || '').toLowerCase().replace(/^@/, '').replace(/\s+/g, '');
+    const okHandle = p.handle && ch.snippet.customUrl && norm(ch.snippet.customUrl) === norm(p.handle);
+    const okName = norm(ch.snippet.title) === norm(p.name);
+    if (!okHandle && !okName) throw new Error('Zalogowano na kanał „' + ch.snippet.title + '”, a ten utwór należy do „' + p.name + '”. Wysyłka zatrzymana. Kliknij ponownie i w oknie Google wybierz kanał „' + p.name + '”.');
+    YT.token = token.access_token; YT.exp = Date.now() + (token.expires_in || 3000) * 1000; YT.pid = p.id; YT.channel = ch.snippet.title;
+    return YT.token;
   };
-  YT.upload = async function (blob, meta, onProgress) {
-    const token = await YT.login();
+  YT.upload = async function (blob, meta, onProgress, p) {
+    const token = await YT.login(p);
     const body = { snippet: { title: meta.title.slice(0, 100), description: meta.description.slice(0, 4900), tags: meta.tags, categoryId: '10', defaultLanguage: meta.lang, defaultAudioLanguage: meta.lang }, status: { privacyStatus: 'private', selfDeclaredMadeForKids: false } };
     const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': blob.type || 'video/mp4', 'X-Upload-Content-Length': String(blob.size) }, body: JSON.stringify(body) });
     if (!init.ok) { let m = init.status + ''; try { m = (await init.json()).error.message; } catch (e) { /* ignore */ } throw new Error('YouTube odrzucił wysyłkę: ' + m); }
@@ -279,13 +291,13 @@
     });
     return res.id;
   };
-  YT.thumb = async function (videoId, blob) {
-    const token = await YT.login();
+  YT.thumb = async function (videoId, blob, p) {
+    const token = await YT.login(p);
     const r = await fetch('https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=' + videoId, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'image/jpeg' }, body: blob });
     if (!r.ok) throw new Error('Miniatura nie została ustawiona (' + r.status + '). Ustaw ją ręcznie w Studio.');
   };
-  YT.playlist = async function (videoId, playlistId) {
-    const token = await YT.login();
+  YT.playlist = async function (videoId, playlistId, p) {
+    const token = await YT.login(p);
     const r = await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } } }) });
     if (!r.ok) throw new Error('Nie dodano do playlisty (' + r.status + ').');
   };
@@ -294,6 +306,7 @@
   S.open = function (songId) {
     const K = App.ui.kit, h = App.ui.h, icon = App.ui.icon, toast = App.ui.toast;
     const s = App.song(songId), p = App.profile(s.profileId);
+    loadGsi().catch(() => {});
     const M = (mem[songId] = mem[songId] || { imgs: [], caps: null, offset: 0, status: '' });
     K.openSheet('Studio teledysku', (render) => {
       const hasAudio = !!M.an;
@@ -328,9 +341,9 @@
         out.appendChild(h('button', { class: 'btn big', onclick: () => S.save(blob, name) }, icon('copy', 18), 'Zapisz plik (' + Math.round(blob.size / 1e6) + ' MB)'));
         const ytbtn = h('button', { class: 'btn big ghost', onclick: guard(async () => {
           const E = App.engine, pack = E.publish(p, s), meta = { title: short ? (pack.shortTitles[0] || pack.hooks[0] || s.title) : pack.titles[0], description: pack.description, tags: pack.tags.join(',').length > 480 ? pack.tags.slice(0, 12) : pack.tags, lang: p.lang };
-          toast('Wysyłam na YouTube jako prywatny. Nie wychodź z aplikacji.'); setBar(0);
-          const id = await YT.upload(blob, meta, setBar); s.yt = s.yt || {}; s.yt[short ? 'short' : 'full'] = id; App.save();
-          if (!short) { try { await YT.thumb(id, await S.thumb(mk())); } catch (er) { toast(er.message); } }
+          toast('Zaloguj się i wybierz kanał: ' + p.name); await YT.login(p); toast('Kanał: ' + YT.channel + '. Wysyłam jako prywatny. Nie wychodź z aplikacji.'); setBar(0);
+          const id = await YT.upload(blob, meta, setBar, p); s.yt = s.yt || {}; s.yt[short ? 'short' : 'full'] = id; App.save();
+          if (!short) { try { await YT.thumb(id, await S.thumb(mk()), p); } catch (er) { toast(er.message); } }
           out.appendChild(h('p', { class: 'hint' }, 'Wysłano jako prywatny. Otwórz w Studio, sprawdź i ustaw na publiczny: https://studio.youtube.com/video/' + id + '/edit'));
           out.appendChild(h('a', { class: 'btn big', href: 'https://studio.youtube.com/video/' + id + '/edit', target: '_blank', rel: 'noopener' }, 'Otwórz w YouTube Studio')); toast('Film jest na kanale jako prywatny');
         }) }, icon('upload', 18), 'Wyślij na YouTube jako prywatny');
