@@ -4,7 +4,7 @@
   App.uid = (p) => (p || 'id') + '_' + Math.random().toString(36).slice(2, 9);
   App.state = {
     profiles: [], songs: [], activeProfile: 'melodia', tab: 'today',
-    settings: { gemini: '', yt: '', model: 'gemini-2.5-flash', img: 'https://rezonans-img.lewandowski-m-90.workers.dev/', ytClient: '43164945118-f2o3h3ko4vamm6oj27m2ajm8819p5okc.apps.googleusercontent.com' }
+    settings: { gemini: '', yt: '', model: 'gemini-3.8-flash', img: 'https://rezonans-img.lewandowski-m-90.workers.dev/', ytClient: '43164945118-f2o3h3ko4vamm6oj27m2ajm8819p5okc.apps.googleusercontent.com' }
   };
   App.clone = (o) => JSON.parse(JSON.stringify(o));
   App.save = function () {
@@ -19,7 +19,7 @@
     if (raw) { try { Object.assign(App.state, JSON.parse(raw)); } catch (e) { /* ignore */ } }
     if (!App.state.profiles || !App.state.profiles.length) App.state.profiles = App.clone(App.DATA.profiles);
     if (!App.state.profiles.find((p) => p.id === App.state.activeProfile)) App.state.activeProfile = App.state.profiles[0].id;
-    App.state.settings = Object.assign({ gemini: '', yt: '', model: 'gemini-2.5-flash', img: 'https://rezonans-img.lewandowski-m-90.workers.dev/', ytClient: '43164945118-f2o3h3ko4vamm6oj27m2ajm8819p5okc.apps.googleusercontent.com' }, App.state.settings || {});
+    App.state.settings = Object.assign({ gemini: '', yt: '', model: 'gemini-3.8-flash', img: 'https://rezonans-img.lewandowski-m-90.workers.dev/', ytClient: '43164945118-f2o3h3ko4vamm6oj27m2ajm8819p5okc.apps.googleusercontent.com' }, App.state.settings || {});
   };
   App.profile = (id) => App.state.profiles.find((p) => p.id === (id || App.state.activeProfile)) || App.state.profiles[0];
   App.songsOf = (pid) => App.state.songs.filter((s) => s.profileId === (pid || App.state.activeProfile));
