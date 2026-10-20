@@ -14,6 +14,56 @@
     const ctx = new AC();
     return new Promise((res, rej) => ctx.decodeAudioData(ab, (b) => { ctx.close && ctx.close(); res(b); }, rej));
   };
+  /* cechy brzmienia co 0,5 s (24 pasma, widmo FFT) i wykrywanie refrenu po powtarzalności */
+  function fft(re, im) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+    for (let len = 2; len <= n; len <<= 1) {
+      const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang), h = len >> 1;
+      for (let i = 0; i < n; i += len) { let cr = 1, ci = 0; for (let k = 0; k < h; k++) { const xr = re[i + k + h] * cr - im[i + k + h] * ci, xi = re[i + k + h] * ci + im[i + k + h] * cr; re[i + k + h] = re[i + k] - xr; im[i + k + h] = im[i + k] - xi; re[i + k] += xr; im[i + k] += xi; const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr; } }
+    }
+  }
+  function timbre(a, b, sr, step) {
+    const N = 4096, NB = 24, frames = Math.floor(a.length / sr / step), lo = 90, hi = Math.min(8000, sr * 0.45), bin = sr / N;
+    const edges = []; for (let i = 0; i <= NB; i++) edges.push(Math.max(1, Math.round(lo * Math.pow(hi / lo, i / NB) / bin)));
+    const win = new Float32Array(N); for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+    const re = new Float32Array(N), im = new Float32Array(N), F = [];
+    for (let f = 0; f < frames; f++) {
+      const v = new Float32Array(NB);
+      for (const off of [-0.12, 0.12]) {
+        const c0 = Math.floor((f + 0.5) * step * sr + off * sr) - (N >> 1); re.fill(0); im.fill(0);
+        for (let i = 0; i < N; i++) { const k = c0 + i; if (k >= 0 && k < a.length) re[i] = (a[k] + b[k]) * 0.5 * win[i]; }
+        fft(re, im);
+        for (let q = 0; q < NB; q++) { let s = 0; for (let k = edges[q]; k < Math.max(edges[q] + 1, edges[q + 1]); k++) s += re[k] * re[k] + im[k] * im[k]; v[q] += s; }
+      }
+      for (let q = 0; q < NB; q++) v[q] = Math.log(1e-7 + v[q] / 2);
+      F.push(v);
+    }
+    for (let q = 0; q < NB; q++) { let m = 0, s = 0; for (const v of F) m += v[q]; m /= F.length || 1; for (const v of F) s += (v[q] - m) * (v[q] - m); s = Math.sqrt(s / (F.length || 1)) || 1; for (const v of F) v[q] = (v[q] - m) / s; }
+    for (const v of F) { let n = 0; for (let q = 0; q < NB; q++) n += v[q] * v[q]; n = Math.sqrt(n) || 1; for (let q = 0; q < NB; q++) v[q] /= n; }
+    return F;
+  }
+  function findChorus(feat, en, dur, vocalStart) {
+    const F = feat.length, step = 0.5;
+    if (F < 40) return { start: Math.min(Math.max(4, vocalStart), Math.max(0, dur - 12)), rep: 0 };
+    const L = Math.min(32, Math.floor(F / 4)), C = new Float32Array(F * F);
+    for (let i = 0; i < F; i++) for (let j = i; j < F; j++) { let s = 0; const x = feat[i], y = feat[j]; for (let q = 0; q < x.length; q++) s += x[q] * y[q]; C[i * F + j] = s; C[j * F + i] = s; }
+    const win = (i, j) => { let s = 0; for (let k = 0; k < L; k++) s += C[(i + k) * F + j + k]; return s / L; };
+    const i0 = Math.max(Math.ceil(Math.max(6, vocalStart - 2) / step), 0), i1 = F - L - Math.ceil(6 / step), rows = [];
+    for (let i = i0; i <= i1; i++) {
+      let b1 = -2, bj = -1; for (let j = 0; j + L <= F; j++) { if (Math.abs(j - i) < L) continue; const s = win(i, j); if (s > b1) { b1 = s; bj = j; } }
+      let b2 = -2; for (let j = 0; j + L <= F; j++) { if (Math.abs(j - i) < L || Math.abs(j - bj) < L) continue; const s = win(i, j); if (s > b2) b2 = s; }
+      let e = 0; for (let k = 0; k < L; k++) e += en[i + k] || 0;
+      rows.push({ i, bj, rep: b2 > -2 ? (b1 + b2) / 2 : b1 * 0.85, e: e / L });
+    }
+    if (!rows.length) return { start: Math.max(4, vocalStart), rep: 0 };
+    const nrm = (k) => { const mn = Math.min(...rows.map((r) => r[k])), mx = Math.max(...rows.map((r) => r[k])); return (x) => (mx > mn ? (x - mn) / (mx - mn) : 0.5); };
+    const nr = nrm('rep'), ne = nrm('e'); rows.forEach((r) => { r.sc = 0.55 * nr(r.rep) + 0.45 * ne(r.e); });
+    const best = Math.max(...rows.map((r) => r.sc)), pick = rows.find((r) => r.sc >= best - 0.08);
+    const cands = []; rows.slice().sort((x, y) => y.sc - x.sc).forEach((r) => { if (cands.length < 5 && cands.every((c) => Math.abs(c.i - r.i) >= L / 2)) cands.push(r); });
+    return { start: pick.i * step, rep: pick.rep, match: pick.bj * step, cands: cands.map((r) => ({ t: r.i * step, sc: Math.round(r.sc * 100) / 100, rep: Math.round(r.rep * 100) / 100, e: Math.round(r.e * 100) / 100 })).sort((x, y) => x.t - y.t) };
+  }
+
   S.analyze = function (buf) {
     const sr = buf.sampleRate, n = buf.length, a = buf.getChannelData(0), b = buf.numberOfChannels > 1 ? buf.getChannelData(1) : a;
     const hop = Math.round(sr / 100), F = Math.floor(n / hop);
@@ -43,28 +93,25 @@
     const sorted = E.slice().sort((x, y) => x - y), ref = sorted[Math.floor(sorted.length * 0.95)] || 1;
     const en = E.map((x) => Math.min(1, x / ref));
     const energyAt = (t) => en[Math.min(en.length - 1, Math.max(0, Math.floor(t * 2)))];
-    // refren: najgłośniejsze okno ok. 20 s
-    const W = 40; let cb = -1, cs = Math.floor(dur * 0.12 * 2);
-    const sc = []; for (let i = Math.floor(dur * 0.12 * 2); i + W < en.length - 8; i++) { let s = 0; for (let j = 0; j < W; j++) s += en[i + j]; sc.push([i, s]); if (s > cb) cb = s; }
-    for (const [i, s] of sc) if (s >= cb * 0.86) { cs = i; break; }
-    let cstart = cs / 2; const nb = beats.reduce((p, x) => (Math.abs(x - cstart) < Math.abs(p - cstart) ? x : p), beats[0] || 0); cstart = nb;
     // początek wokalu: pierwsza chwila, gdy energia przekracza 55 %
     let vs = 8; for (let i = 4; i < en.length; i++) { if (en[i] > 0.55 && en[i + 1] > 0.5) { vs = i / 2; break; } }
-    return { dur, bpm, beats, energyAt, en, chorus: { start: cstart, end: Math.min(dur, cstart + 20) }, vocalStart: vs };
+    // refren: powtarzalność brzmienia (samopodobieństwo) razem z energią
+    const feat = timbre(a, b, sr, 0.5), ch = findChorus(feat, en, dur, vs);
+    let cstart = ch.start; const nb = beats.reduce((p, x) => (Math.abs(x - cstart) < Math.abs(p - cstart) ? x : p), beats[0] || 0); if (Math.abs(nb - cstart) < 1.5) cstart = nb;
+    return { dur, bpm, beats, energyAt, en, chorus: { start: cstart, end: Math.min(dur, cstart + 20), rep: ch.rep, match: ch.match, cands: ch.cands || [] }, vocalStart: vs };
   };
 
   /* ---------- sceny, cięcia ---------- */
-  function buildCuts(an, nImg) {
-    const cuts = [], beats = an.beats; let i = 0, last = -1;
+  function buildCuts(an, imgAt) {
+    const cuts = [], beats = an.beats; let i = 0;
     while (i < beats.length - 1) {
       const t0 = i === 0 ? 0 : beats[i], e = an.energyAt(t0);
-      const step = e > 0.7 ? 4 : e > 0.4 ? 8 : 8;
+      const step = e > 0.7 ? 4 : 8;
       const j = Math.min(beats.length - 1, i + step), t1 = j >= beats.length - 1 ? an.dur : beats[j];
-      let img; do { img = Math.floor(Math.random() * nImg); } while (nImg > 1 && img === last); last = img;
-      cuts.push({ t0, t1, img, motion: cuts.length % 4, soft: e < 0.4 });
+      cuts.push({ t0, t1, img: imgAt(t0 + (t1 - t0) * 0.5), motion: cuts.length % 4, soft: e < 0.4 });
       i = j;
     }
-    if (!cuts.length) cuts.push({ t0: 0, t1: an.dur, img: 0, motion: 0, soft: true });
+    if (!cuts.length) cuts.push({ t0: 0, t1: an.dur, img: imgAt(0), motion: 0, soft: true });
     cuts[cuts.length - 1].t1 = an.dur + 1;
     return cuts;
   }
@@ -96,12 +143,16 @@
     if (p.visual) return p.visual;
     return 'cinematic music video still, ' + (p.dna.genre || 'moody') + ', dramatic light, no text, no watermark';
   }
-  S.prompts = function (p, s) {
-    const base = (s.shots && s.shots.length ? s.shots : (s.scenes || [])).filter(Boolean);
-    const extra = ['wide establishing shot', 'extreme close-up detail', 'silhouette against the light', 'low angle dramatic shot'];
-    const out = base.slice(0, 6); for (let i = 0; out.length < 6; i++) out.push((base[i % Math.max(1, base.length)] || s.title || p.name) + ', ' + extra[i % extra.length]);
-    return out.map((x) => x + '. ' + visual(p));
-  };
+  /* plan kadrów: każdy kadr ilustruje fragment tekstu (from = numer pierwszej linii) */
+  function planFallback(s, nLines) {
+    const base = (s.scenes || []).filter(Boolean), extra = ['wide establishing shot', 'extreme close-up detail', 'silhouette against the light', 'low angle dramatic shot'], n = 8, out = [];
+    for (let i = 0; i < n; i++) out.push({ from: Math.floor(i * Math.max(1, nLines) / n), prompt: (base[i % Math.max(1, base.length)] || s.title || 'cinematic scene') + ', ' + extra[Math.floor(i / Math.max(1, base.length)) % extra.length] });
+    return out;
+  }
+  const isSame = (x, i) => x.same != null && x.same >= 0 && x.same < i;
+  function planMap(plan) { const idx = []; let n = 0; plan.forEach((x, i) => { idx[i] = isSame(x, i) ? idx[x.same] : n++; }); return { idx, n }; }
+  S.plan = (s, M, nLines) => (M.plan && M.plan.length ? M.plan : planFallback(s, nLines));
+  S.prompts = function (p, s, M, nLines) { const plan = S.plan(s, M, nLines), out = []; plan.forEach((x, i) => { if (!isSame(x, i)) out.push(x.prompt + '. ' + visual(p)); }); return out; };
 
   /* ---------- napisy ---------- */
   S.lines = (lyrics) => (lyrics || '').split('\n').map((l) => l.trim()).filter((l) => l && !/^\[.*\]$/.test(l) && !/^\(.*\)$/.test(l));
@@ -110,15 +161,33 @@
     let t = t0; return lines.map((l) => { const c = { t, text: l }; t += (t1 - t0) * (l.length + 14) / tot; return c; });
   };
   function b64(ab) { const u = new Uint8Array(ab); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
-  S.aiCaps = async function (ab, mime, lines) {
-    const prompt = 'Posłuchaj piosenki. Poniżej numerowane linie tekstu w kolejności śpiewania (powtórzenia są osobnymi liniami). Dla każdej linii podaj sekundę, w której zaczyna się jej śpiewanie. Zwróć tylko JSON: tablica obiektów {"i": numer, "t": sekundy}.\n' + lines.map((l, i) => i + ': ' + l).join('\n');
+  /* Gemini słucha nagrania i spisuje to, co faktycznie jest śpiewane, z czasami początku i końca każdej linii */
+  S.aiCaps = async function (ab, mime, lines, dur) {
+    const prompt = ['Posłuchaj piosenki (czas trwania ok. ' + Math.round(dur) + ' s). Spisz linia po linii to, co jest FAKTYCZNIE śpiewane lub rapowane, w kolejności, z czasem początku i końca każdej linii w sekundach od początku nagrania.',
+      'Każde powtórzenie (np. refrenu) to osobna linia z własnym czasem. Pomiń fragmenty instrumentalne. Nie wymyślaj i nie poprawiaj słów, spisuj to, co słychać.',
+      lines.length ? 'Zamierzony tekst (tylko jako pomoc w pisowni; wykonanie może się różnić, wtedy spisz to, co słychać):\n' + lines.join('\n') : '',
+      'Zwróć tylko JSON: tablica obiektów {"t": początek, "e": koniec, "text": "linia"}.'].filter(Boolean).join('\n');
     const raw = await App.ai.gemini(prompt, { json: true, temp: 0.1, parts: [{ inline_data: { mime_type: mime || 'audio/mpeg', data: b64(ab) } }] });
-    const arr = JSON.parse(raw); let prev = -1;
-    const caps = lines.map((l, i) => { const o = arr.find((x) => x.i === i); return { t: o ? Number(o.t) : NaN, text: l }; });
-    caps.forEach((c) => { if (!(c.t > prev)) c.t = NaN; else prev = c.t; });
-    if (caps.filter((c) => !isNaN(c.t)).length < lines.length * 0.7) throw new Error('Gemini zwrócił za mało czasów');
-    for (let i = 0; i < caps.length; i++) if (isNaN(caps[i].t)) { const a = caps.slice(0, i).reverse().find((c) => !isNaN(c.t)), b = caps.slice(i).find((c) => !isNaN(c.t)); caps[i].t = a && b ? (a.t + b.t) / 2 : (a ? a.t + 3 : b.t - 3); }
+    let arr = JSON.parse(raw); if (!Array.isArray(arr)) arr = arr.lines || arr.captions || [];
+    let caps = arr.map((x) => ({ t: Number(x.t), e: Number(x.e), text: String(x.text || '').trim() })).filter((c) => c.text && isFinite(c.t) && c.t >= 0 && c.t < dur).sort((x, y) => x.t - y.t);
+    for (let i = 1; i < caps.length; i++) if (caps[i].t <= caps[i - 1].t) caps[i].t = caps[i - 1].t + 0.5;
+    caps = caps.filter((c) => c.t < dur - 0.5);
+    if (caps.length < 6) throw new Error('Gemini spisał za mało linii z nagrania (' + caps.length + ').');
+    caps.forEach((c, i) => { const nx = caps[i + 1] ? caps[i + 1].t : dur; if (!(c.e > c.t) || c.e > nx) c.e = Math.min(nx, c.t + 5); if (c.e - c.t > 9) c.e = c.t + 9; });
     return caps;
+  };
+  /* refren z tekstu: pierwszy blok co najmniej 2 kolejnych linii, które wracają później (lub wcześniej) */
+  S.chorusFromCaps = function (caps) {
+    if (!caps || caps.length < 6) return null;
+    const norm = (t) => t.toLowerCase().replace(/[^\p{L}\s]/gu, ' ').split(/\s+/).filter((w) => w.length > 2);
+    const toks = caps.map((c) => norm(c.text));
+    const sim = (x, y) => { if (!x.length || !y.length) return 0; const sy = new Set(y); let k = 0; x.forEach((w) => sy.has(w) && k++); return k / Math.max(x.length, y.length); };
+    const rep = caps.map((c, i) => toks.some((t, j) => Math.abs(j - i) >= 2 && sim(toks[i], t) >= 0.6));
+    for (let i = 0; i < caps.length - 1; i++) if (rep[i] && rep[i + 1]) {
+      let k = i; while (k + 1 < caps.length && rep[k + 1] && k - i < 7) k++;
+      return { start: Math.max(0, caps[i].t - 0.4), end: caps[k].e || caps[k].t + 4, first: i, last: k };
+    }
+    return null;
   };
 
   /* ---------- rysowanie klatki ---------- */
@@ -158,11 +227,11 @@
         for (let r = 0; r < rows; r++) { ctx.fillStyle = hexA(r > maxRows - 3 ? pal.accent2 : pal.accent, 0.35 + 0.55 * (1 - r / maxRows)); const s = tile - gap; ctx.fillRect(i * tile + gap / 2, base - (r + 1) * tile * 0.9, s, s * 0.78); }
       }
       // napisy
-      const caps = R.caps || []; let ci2 = -1; for (let i = 0; i < caps.length; i++) if (caps[i].t + (R.offset || 0) <= t) ci2 = i; else break;
+      const caps = R.caps || [], off = R.offset || 0; let ci2 = -1; for (let i = 0; i < caps.length; i++) if (caps[i].t + off <= t) ci2 = i; else break;
       if (ci2 >= 0) {
-        const cp = caps[ci2], st = cp.t + (R.offset || 0), nx = caps[ci2 + 1] ? caps[ci2 + 1].t + (R.offset || 0) : st + 5;
-        if (t < Math.min(nx + 0.2, st + 7)) {
-          const a = Math.min(1, (t - st) / 0.22), px = vert ? W * 0.078 : H * 0.062; ctx.font = font(px, 800); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const cp = caps[ci2], st = cp.t + off, nx = caps[ci2 + 1] ? caps[ci2 + 1].t + off : Infinity, en2 = cp.e ? cp.e + off : st + 4.5;
+        if (t < Math.min(nx, Math.max(en2, st + 1.8)) + 0.15) {
+          const a = Math.min(1, (t - st) / 0.18), px = vert ? W * 0.078 : H * 0.062; ctx.font = font(px, 800); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           const ls = wrap(ctx, cp.text.toUpperCase(), W * (vert ? 0.86 : 0.8)), lh = px * 1.18, y0 = (vert ? H * 0.66 : H * 0.72) - (ls.length - 1) * lh / 2 + (1 - a) * px * 0.4;
           ctx.globalAlpha = a; ctx.lineJoin = 'round'; ctx.lineWidth = px * 0.16; ctx.strokeStyle = 'rgba(0,0,0,.85)';
           ls.forEach((l, i) => { ctx.strokeText(l, W / 2, y0 + i * lh); ctx.fillStyle = '#fff6e5'; ctx.fillText(l, W / 2, y0 + i * lh); });
@@ -307,33 +376,52 @@
   S.hasAudio = (id) => !!(mem[id] && mem[id].an);
   S.loadFile = async function (id, file) {
     const M = S.mem(id), s = App.song(id);
-    M.file = file; M.ab = await file.arrayBuffer(); M.buf = await S.decode(M.ab.slice(0)); M.an = S.analyze(M.buf); M.cuts = null; M.caps = null; M.generated = false;
-    if (!s.chorusStart) s.chorusStart = mmss(M.an.chorus.start);
+    M.file = file; M.ab = await file.arrayBuffer(); M.buf = await S.decode(M.ab.slice(0)); M.an = S.analyze(M.buf); M.cuts = null; M.caps = null; M.exact = false; M.align = ''; M.plan = null; M.chorusText = null; M.generated = false; M.notes = [];
+    if (s.chorusAuto !== false) { s.chorusStart = mmss(M.an.chorus.start); s.chorusAuto = true; }
     s.mp3 = file.name; App.save(); return M.an;
   };
+  const capIdxAt = (caps, t) => { let k = -1; for (let i = 0; i < caps.length; i++) if (caps[i].t <= t) k = i; else break; return k; };
   S.mk = function (id) {
-    const s = App.song(id), p = App.profile(s.profileId), M = S.mem(id);
-    if (!M.imgs.length) M.imgs = S.prompts(p, s).map((x, i) => procArt(p, i + 3));
-    if (!M.cuts) M.cuts = buildCuts(M.an, M.imgs.length);
-    if (!M.caps) { const ln = S.lines(s.lyrics); M.caps = ln.length ? S.heurCaps(ln, M.an) : []; M.align = ln.length ? 'przybliżone' : 'brak tekstu'; }
-    return { p, an: M.an, imgs: M.imgs, cuts: M.cuts, caps: M.caps, offset: M.offset, title: s.title || '', buf: M.buf, thumbWords: s.thumbWords };
+    const s = App.song(id), p = App.profile(s.profileId), M = S.mem(id), ln = S.lines(s.lyrics);
+    const mapCaps = M.exact && M.caps && M.caps.length ? M.caps : (ln.length ? S.heurCaps(ln, M.an) : []);
+    const plan = S.plan(s, M, mapCaps.length), pm = planMap(plan);
+    if (M.imgs.length !== pm.n) M.imgs = Array.from({ length: pm.n }, (_, i) => procArt(p, i + 3));
+    if (!M.cuts) M.cuts = buildCuts(M.an, (t) => {
+      const ci = capIdxAt(mapCaps, t); let k = 0; plan.forEach((x, i) => { if (x.from <= Math.max(0, ci)) k = i; });
+      return pm.idx[k];
+    });
+    const caps = M.exact ? M.caps : (M.approx ? mapCaps : []);
+    return { p, an: M.an, imgs: M.imgs, cuts: M.cuts, caps, offset: M.offset, title: s.title || '', buf: M.buf, thumbWords: s.thumbWords };
   };
-  /* jedno kliknięcie: sceny z tekstu, obrazy, napisy zsynchronizowane z piosenką */
+  /* jedno kliknięcie: napisy ze słuchu, sceny z tekstu, obrazy, refren */
   S.autoPrepare = async function (id, say) {
     const s = App.song(id), p = App.profile(s.profileId), M = S.mem(id), key = App.ai.hasKey(), notes = [];
-    if (key) { try { say('Gemini układa sceny z tekstu…'); s.shots = await App.ai.shots(p, s); App.save(); } catch (e) { notes.push('sceny z tekstu: ' + e.message); } }
-    const list = S.prompts(p, s), res = []; let fails = 0;
+    let lines = S.lines(s.lyrics); M.exact = false; M.caps = null; M.plan = null; M.chorusText = null; M.align = lines.length ? 'przybliżone' : 'brak tekstu';
+    if (key) {
+      try { say('Gemini słucha utworu i spisuje napisy…'); M.caps = await S.aiCaps(M.ab, M.file && M.file.type, lines, M.an.dur); M.exact = true; M.align = 'ze słuchu (Gemini)'; lines = M.caps.map((c) => c.text); }
+      catch (e) { M.caps = null; notes.push('Napisy: ' + e.message + ' Bez dokładnych napisów nie pokazuję tekstu w filmie.'); }
+      if (lines.length) { try { say('Gemini układa sceny pod treść tekstu…'); M.plan = await App.ai.shots(p, s, lines); } catch (e) { M.plan = null; notes.push('Sceny z tekstu: ' + e.message); } }
+    } else notes.push('Brak klucza Gemini: napisy i sceny nie będą dopasowane do nagrania (Ustawienia → Klucz Gemini).');
+    const list = S.prompts(p, s, M, lines.length), res = []; let fails = 0;
     for (let i = 0; i < list.length; i++) { say('Generuję obraz ' + (i + 1) + ' z ' + list.length + '…'); try { res.push(await S.genImage(list[i])); } catch (e) { fails++; res.push(procArt(p, i + 3)); } }
     M.imgs = res; M.cuts = null; M.generated = fails < list.length;
-    if (fails) notes.push(fails + ' obrazów zastąpiłem kafelkami');
-    const ln = S.lines(s.lyrics);
-    if (key && ln.length) { try { say('Gemini słucha utworu i dopasowuje napisy…'); M.caps = await S.aiCaps(M.ab, M.file && M.file.type, ln); M.align = 'dokładne (Gemini)'; } catch (e) { M.caps = null; notes.push('napisy przybliżone: ' + e.message); } }
-    return notes;
+    if (fails) notes.push(fails + ' obrazów zastąpiłem kafelkami.');
+    if (M.exact) { M.chorusText = S.chorusFromCaps(M.caps); if (M.chorusText && s.chorusAuto !== false) { s.chorusStart = mmss(M.chorusText.start); s.chorusAuto = true; } }
+    App.save(); M.notes = notes; return notes;
+  };
+  /* okno Shorta: od początku refrenu, do końca linii, ok. 24 s */
+  S.shortWindow = function (id) {
+    const s = App.song(id), M = S.mem(id), dur = M.an.dur, cs = parseT(s.chorusStart);
+    let start = M.chorusText && s.chorusAuto !== false ? M.chorusText.start : (cs !== null && cs < dur - 8 ? cs : M.an.chorus.start);
+    start = Math.max(0, Math.min(start, dur - 10));
+    let end = start + 24; if (M.chorusText && s.chorusAuto !== false) end = Math.max(end - 4, Math.min(start + 30, M.chorusText.end + 1));
+    if (M.exact && M.caps) { const c = M.caps.find((x) => x.t <= end && (x.e || x.t + 4) > end); if (c) end = (c.e || c.t + 4) + 0.6 <= start + 32 ? (c.e || c.t + 4) + 0.6 : c.t - 0.15; }
+    return { start, len: Math.max(12, Math.min(end, dur) - start) };
   };
   S.renderVideo = async function (id, short, onProgress, cv) {
     const s = App.song(id), M = S.mem(id), R = S.mk(id), W = short ? 720 : 1280, H = short ? 1280 : 720, c = cv || document.createElement('canvas'); c.width = W; c.height = H;
-    const cs = parseT(s.chorusStart), start = short ? (cs !== null && cs < M.an.dur - 8 ? cs : M.an.chorus.start) : 0, len = short ? Math.min(28, M.an.dur - start) : M.an.dur;
-    const blob = await S.play(R, c, { start, len, record: true, short, onProgress });
+    const sw = short ? S.shortWindow(id) : { start: 0, len: M.an.dur };
+    const blob = await S.play(R, c, { start: sw.start, len: sw.len, record: true, short, onProgress });
     const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
     return { blob, W, H, name: (s.title || 'teledysk').replace(/[^\w\-]+/g, '_') + (short ? '_short' : '') + '.' + ext };
   };
@@ -382,10 +470,13 @@
         h('label', { class: 'btn big filebtn' }, icon('plus', 18), hasAudio ? 'Zmień plik mp3' : 'Wybierz plik mp3', fileIn),
         M.status ? h('p', { class: 'hint' }, M.status) : null,
         hasAudio ? h('div', { class: 'stack' },
-          h('p', { class: 'muted small' }, 'Czas ' + mmss(M.an.dur) + ' · tempo ok. ' + Math.round(M.an.bpm) + ' bpm · refren od ' + mmss(M.an.chorus.start) + ' · napisy: ' + (M.align || '—')),
+          h('p', { class: 'muted small' }, 'Czas ' + mmss(M.an.dur) + ' · tempo ok. ' + Math.round(M.an.bpm) + ' bpm · Short od ' + mmss(S.shortWindow(songId).start) + (M.chorusText && s.chorusAuto !== false ? ' (refren z tekstu)' : s.chorusAuto === false ? ' (ustawiony ręcznie)' : ' (refren z dźwięku)') + ' · napisy: ' + (M.align || '—')),
+          (M.notes && M.notes.length) ? h('div', { class: 'warnbox' }, M.notes.map((n) => h('p', null, n))) : null,
+          (M.an.chorus.cands && M.an.chorus.cands.length) ? h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Początek Shorta, gdyby wyszedł zły fragment:'), h('div', { class: 'row-btns' }, M.an.chorus.cands.map((c) => h('button', { class: 'btn ghost', onclick: () => { s.chorusStart = mmss(c.t); s.chorusAuto = false; App.save(); render(); } }, mmss(c.t))))) : null,
+          h('button', { class: 'btn ghost', onclick: () => { M.approx = !M.approx; render(); } }, M.exact ? 'Napisy: dokładne, ze słuchu' : (M.approx ? 'Napisy przybliżone: włączone (mogą się rozjeżdżać). Kliknij, by wyłączyć' : 'Napisy: wyłączone, bo brak dokładnego dopasowania. Kliknij, by włączyć przybliżone')),
           cv,
           h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: guard(async () => { await S.autoPrepare(songId, toast).then((n) => n.length && toast(n.join('. '))); render(); }) }, icon('spark', 18), 'Przygotuj teledysk automatycznie'),
-            h('button', { class: 'btn ghost', onclick: guard(async () => { const R = S.mk(songId); setBar(0); await S.play(R, cv, { start: M.an.chorus.start, len: 15, record: false, onProgress: setBar }); showStill(); }) }, icon('refresh', 18), 'Podgląd 15 s z dźwiękiem')),
+            h('button', { class: 'btn ghost', onclick: guard(async () => { const R = S.mk(songId); setBar(0); await S.play(R, cv, { start: S.shortWindow(songId).start, len: 15, record: false, onProgress: setBar }); showStill(); }) }, icon('refresh', 18), 'Podgląd 15 s z dźwiękiem')),
           bar,
           M.imgs.length ? h('div', { class: 'thumbs' }, M.imgs.map((im) => { const c = document.createElement('canvas'); c.width = 160; c.height = 160; const w = im.naturalWidth || im.width, hh = im.naturalHeight || im.height; c.getContext('2d').drawImage(im, 0, 0, w, hh, 0, 0, 160, 160); c.className = 'thumb'; return c; })) : null,
           h('label', { class: 'field' }, h('span', { class: 'flabel' }, 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'), h('input', { type: 'range', min: -4, max: 4, step: 0.1, value: M.offset, oninput: (e) => { M.offset = +e.target.value; e.target.previousSibling.textContent = 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'; } })),

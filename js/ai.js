@@ -71,13 +71,20 @@
     return (Array.isArray(arr) ? arr : [arr]).slice(0, 3).map((x) => Object.assign({ id: App.uid('idea'), branch: (p.styleVariants[0] || {}).id }, x));
   };
 
-  AI.shots = async function (p, song) {
-    const prompt = ['Zaprojektuj 6 różnych kadrów do teledysku piosenki „' + song.title + '” (kanał ' + p.name + ').',
-      'Tekst piosenki:\n' + (song.lyrics || song.premise || '').slice(0, 1800),
-      'Każdy kadr to jeden opis obrazu po ANGIELSKU, do generatora obrazów: konkretny obiekt lub miejsce, światło, kompozycja. Bez twarzy, bez ludzi z bliska, bez napisów i logo. Różne plany: szeroki, zbliżenie, szczegół, sylwetka. Jeden spójny świat wizualny: ' + (p.visual || p.dna.genre) + '.',
-      'Zwróć JSON: tablica 6 stringów.'].join('\n');
-    const arr = JSON.parse(await AI.gemini(prompt, { json: true, temp: 0.9 }));
-    return arr.map(String).slice(0, 6);
+  /* plan kadrów pod treść: każdy kadr ilustruje konkretny fragment tekstu; powrót refrenu = ten sam kadr */
+  AI.shots = async function (p, song, lines) {
+    const prompt = ['Jesteś reżyserem teledysku. Piosenka „' + song.title + '” (kanał ' + p.name + '). Styl wizualny kanału: ' + (p.visual || p.dna.genre) + '.',
+      'Linie tekstu w kolejności śpiewania (numer: linia):\n' + lines.slice(0, 90).map((l, i) => i + ': ' + l).join('\n'),
+      'Zaplanuj 12 kadrów po ANGIELSKU dla generatora obrazów, po jednym na kolejny fragment tekstu. Dla każdego podaj "from" (numer pierwszej linii, którą kadr ilustruje; rosnąco, pierwszy kadr ma from 0) i "prompt".',
+      'Zasady: kadr pokazuje KONKRETNY obraz z tych linii (miejsce, przedmiot, gest, pora dnia, ludzie z wyglądu), a nie ogólny nastrój. Różne plany: szeroki, zbliżenie, detal, sylwetka, z dołu. Jeden bohater zawsze wygląda tak samo: opisz go raz w polu "hero" i wpisuj ten opis w prompty kadrów, w których występuje. Refren, gdy wraca, ma ten sam kadr: zamiast "prompt" podaj "same_as" (numer wcześniejszego kadru, liczony od 0). Bez napisów, liter, logo, znaków wodnych.',
+      'Zwróć JSON: {"hero":"...","shots":[{"from":0,"prompt":"..."},{"from":9,"same_as":2}]}'].join('\n');
+    const o = JSON.parse(await AI.gemini(prompt, { json: true, temp: 0.8 }));
+    const arr = (o.shots || o || []).filter((x) => x && isFinite(Number(x.from))).map((x) => ({ from: Math.max(0, Math.round(Number(x.from))), prompt: x.prompt ? String(x.prompt) : '', same: x.same_as != null && isFinite(Number(x.same_as)) ? Math.round(Number(x.same_as)) : null }));
+    arr.sort((x, y) => x.from - y.from);
+    const out = arr.slice(0, 16).filter((x, i) => x.prompt || (x.same != null && x.same < i));
+    if (out.length < 4) throw new Error('Gemini zwrócił za mało kadrów.');
+    out[0].from = 0;
+    return out;
   };
 
   AI.refinePack = async function (p, song, pack) {

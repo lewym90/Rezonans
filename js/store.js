@@ -1,7 +1,7 @@
 (function () {
   const App = (window.App = window.App || {});
   const KEY = 'rezonans.v1';
-  App.version = 13;
+  App.version = 14;
   App.uid = (p) => (p || 'id') + '_' + Math.random().toString(36).slice(2, 9);
   App.state = {
     profiles: [], songs: [], activeProfile: 'melodia', tab: 'today',

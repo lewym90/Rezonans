@@ -371,7 +371,7 @@
         h('div', null, h('span', { class: 'flabel' }, 'Status'), h('div', { class: 'chips' }, ['szkic', 'suno', 'gotowy', 'opublikowany'].map((x) => chip(x, s.status === x, () => { s.status = x; save(); render(); })))),
         field('Premiera', h('input', { type: 'datetime-local', value: pub, onchange: (e) => { s.publishAt = e.target.value ? new Date(e.target.value).toISOString() : ''; save(); render(); } })),
         field('Tekst', lyr, copyBtn(() => s.lyrics, 'Tekst')),
-        field('Początek refrenu (mm:ss)', h('input', { value: s.chorusStart || '', placeholder: '0:48', inputmode: 'numeric', oninput: (e) => { s.chorusStart = e.target.value; save(); } })),
+        field('Początek refrenu (mm:ss)', h('input', { value: s.chorusStart || '', placeholder: '0:48', inputmode: 'numeric', oninput: (e) => { s.chorusStart = e.target.value; s.chorusAuto = false; save(); } })),
         h('button', { class: 'btn ghost', onclick: render }, icon('refresh', 18), 'Odśwież pakiet po zmianach'),
 
         h('h3', { class: 'sec' }, 'Pakiet publikacji'),

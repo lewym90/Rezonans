@@ -46,8 +46,8 @@
           ol(['W Suno otwórz wybraną piosenkę, dotknij ⋯ (trzy kropki) → Download → MP3 Audio.', 'Plik zapisze się na telefonie. Na iPhonie jest w aplikacji Pliki, w folderze Pobrane.', 'Wróć tutaj i kliknij poniżej, żeby wybrać ten plik.']),
           h('label', { class: 'btn big filebtn' }, icon('plus', 18), has ? 'Wybierz inny plik mp3' : 'Wybierz plik mp3', fi),
           M.status ? h('p', { class: 'hint' }, M.status) : null,
-          has ? h('div', { class: 'okbox' }, h('b', null, 'Plik wczytany: ' + (s.mp3 || '')), h('p', { class: 'muted small' }, 'Aplikacja wykryła tempo ok. ' + Math.round(M.an.bpm) + ' bpm i refren od ' + Math.floor(M.an.chorus.start / 60) + ':' + String(Math.floor(M.an.chorus.start % 60)).padStart(2, '0') + '.')) : null,
-          h('p', { class: 'muted small' }, 'Plik nigdzie nie jest wysyłany. Zostaje w pamięci aplikacji, dopóki jej nie zamkniesz.'));
+          has ? h('div', { class: 'okbox' }, h('b', null, 'Plik wczytany: ' + (s.mp3 || '')), h('p', { class: 'muted small' }, 'Aplikacja wykryła tempo ok. ' + Math.round(M.an.bpm) + ' bpm. Refren ustalę dokładniej po spisaniu napisów.')) : null,
+          h('p', { class: 'muted small' }, 'Plik zostaje w pamięci aplikacji. Jeśli masz klucz Gemini, przy przygotowaniu teledysku nagranie jest jednorazowo wysyłane do Gemini, żeby spisać napisy ze słuchu. Nie jest nigdzie zapisywane przez aplikację.'));
       } else if (cur === 3) {
         body = h('div', { class: 'stack' },
           ol(['Kliknij „Przygotuj teledysk automatycznie”. Aplikacja ułoży sceny z tekstu, wygeneruje obrazy i dopasuje napisy.', 'Obejrzyj podgląd 15 sekund z dźwiękiem.', 'Zrenderuj film 16:9 i Short 9:16. Trwa tyle, ile utwór. Nie wychodź z aplikacji.', 'Zapisz plik albo od razu wyślij na YouTube jako prywatny.']),
