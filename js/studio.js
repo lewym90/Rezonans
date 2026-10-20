@@ -161,20 +161,45 @@
     let t = t0; return lines.map((l) => { const c = { t, text: l }; t += (t1 - t0) * (l.length + 14) / tot; return c; });
   };
   function b64(ab) { const u = new Uint8Array(ab); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
-  /* Gemini słucha nagrania i spisuje to, co faktycznie jest śpiewane, z czasami początku i końca każdej linii */
-  S.aiCaps = async function (ab, mime, lines, dur) {
-    const prompt = ['Posłuchaj piosenki (czas trwania ok. ' + Math.round(dur) + ' s). Spisz linia po linii to, co jest FAKTYCZNIE śpiewane lub rapowane, w kolejności, z czasem początku i końca każdej linii w sekundach od początku nagrania.',
-      'Każde powtórzenie (np. refrenu) to osobna linia z własnym czasem. Pomiń fragmenty instrumentalne. Nie wymyślaj i nie poprawiaj słów, spisuj to, co słychać.',
-      lines.length ? 'Zamierzony tekst (tylko jako pomoc w pisowni; wykonanie może się różnić, wtedy spisz to, co słychać):\n' + lines.join('\n') : '',
-      'Zwróć tylko JSON: tablica obiektów {"t": początek, "e": koniec, "text": "linia"}.'].filter(Boolean).join('\n');
-    const raw = await App.ai.gemini(prompt, { json: true, temp: 0.1, parts: [{ inline_data: { mime_type: mime || 'audio/mpeg', data: b64(ab) } }] });
-    let arr = JSON.parse(raw); if (!Array.isArray(arr)) arr = arr.lines || arr.captions || [];
-    let caps = arr.map((x) => ({ t: Number(x.t), e: Number(x.e), text: String(x.text || '').trim() })).filter((c) => c.text && isFinite(c.t) && c.t >= 0 && c.t < dur).sort((x, y) => x.t - y.t);
+  /* fragment nagrania jako WAV 16 kHz mono (base64): krótkie kawałki dają dokładne czasy */
+  S.wavChunk = function (buf, t0, t1) {
+    const sr = buf.sampleRate, a = buf.getChannelData(0), b = buf.numberOfChannels > 1 ? buf.getChannelData(1) : a, R = 16000, n = Math.max(1, Math.floor((t1 - t0) * R)), dv = new DataView(new ArrayBuffer(44 + n * 2));
+    const w = (o, str) => { for (let i = 0; i < str.length; i++) dv.setUint8(o + i, str.charCodeAt(i)); };
+    w(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true); dv.setUint32(24, R, true); dv.setUint32(28, R * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, n * 2, true);
+    const ratio = sr / R;
+    for (let i = 0; i < n; i++) { const s0 = Math.floor((t0 * R + i) * ratio), s1 = Math.min(a.length, Math.floor((t0 * R + i + 1) * ratio)); let sum = 0, c = 0; for (let k = s0; k < Math.max(s1, s0 + 1) && k < a.length; k++) { sum += (a[k] + b[k]) / 2; c++; } dv.setInt16(44 + i * 2, Math.round(Math.max(-1, Math.min(1, c ? sum / c : 0)) * 32767), true); }
+    return b64(dv.buffer);
+  };
+  /* podział na kawałki ok. 50 s, cięcie w najcichszym miejscu */
+  S.chunks = function (an) {
+    const dur = an.dur, out = []; let t = 0;
+    while (dur - t > 70) { let best = t + 50, bv = 9; for (let x = t + 38; x <= t + 62 && x < dur - 10; x += 0.5) { const e = an.en[Math.floor(x * 2)]; if (e < bv) { bv = e; best = x; } } out.push([t, best]); t = best; }
+    out.push([t, dur]); return out;
+  };
+  /* Gemini słucha nagrania kawałek po kawałku i spisuje to, co faktycznie jest śpiewane, z czasem początku i końca każdej linii */
+  S.aiCaps = async function (buf, an, lines, say) {
+    const dur = an.dur, ch = S.chunks(an), all = [], fails = [];
+    for (let k = 0; k < ch.length; k++) {
+      const t0 = ch[k][0], t1 = ch[k][1], len = t1 - t0;
+      if (say) say('Gemini spisuje napisy ze słuchu… (' + (k + 1) + '/' + ch.length + ')');
+      const prompt = ['Posłuchaj fragmentu piosenki (długość ' + len.toFixed(1) + ' s). Spisz linia po linii to, co jest FAKTYCZNIE śpiewane lub rapowane, w kolejności, z czasem początku i końca każdej linii w sekundach od początku TEGO fragmentu (od 0 do ' + len.toFixed(0) + ').',
+        'Każde powtórzenie to osobna linia z własnym czasem. Pomiń fragmenty instrumentalne. Nie wymyślaj i nie poprawiaj słów, spisuj to, co słychać. Jeśli w tym fragmencie nie ma śpiewu, zwróć [].',
+        lines.length ? 'Zamierzony tekst całej piosenki (tylko jako pomoc w pisowni; wykonanie może się różnić, wtedy spisz to, co słychać):\n' + lines.join('\n') : '',
+        'Zwróć tylko JSON: tablica obiektów {"t": początek, "e": koniec, "text": "linia"}.'].filter(Boolean).join('\n');
+      const data = S.wavChunk(buf, t0, t1); let arr = null, err = null;
+      for (let at = 0; at < 2 && !arr; at++) {
+        try { let o = JSON.parse(await App.ai.gemini(prompt, { json: true, temp: 0.1, parts: [{ inline_data: { mime_type: 'audio/wav', data } }] })); if (!Array.isArray(o)) o = o.lines || o.captions || []; arr = o; }
+        catch (e) { err = e; if (/^(Darmowy limit|Ten klucz|Brak klucza)/.test(e.message)) throw e; }
+      }
+      if (!arr) { fails.push((k + 1) + ': ' + (err && err.message)); continue; }
+      arr.forEach((x) => { const t = Number(x.t) + t0, e = Number(x.e) + t0, text = String(x.text || '').trim(); if (text && isFinite(t) && Number(x.t) >= 0 && Number(x.t) < len + 0.5) all.push({ t, e, text }); });
+    }
+    if (fails.length > ch.length / 2) throw new Error('Gemini nie spisał większości nagrania (' + fails[0] + ').');
+    let caps = all.sort((x, y) => x.t - y.t).filter((c) => c.t < dur - 0.3);
     for (let i = 1; i < caps.length; i++) if (caps[i].t <= caps[i - 1].t) caps[i].t = caps[i - 1].t + 0.5;
-    caps = caps.filter((c) => c.t < dur - 0.5);
     if (caps.length < 6) throw new Error('Gemini spisał za mało linii z nagrania (' + caps.length + ').');
     caps.forEach((c, i) => { const nx = caps[i + 1] ? caps[i + 1].t : dur; if (!(c.e > c.t) || c.e > nx) c.e = Math.min(nx, c.t + 5); if (c.e - c.t > 9) c.e = c.t + 9; });
-    return caps;
+    caps.fails = fails; return caps;
   };
   /* refren z tekstu: pierwszy blok co najmniej 2 kolejnych linii, które wracają później (lub wcześniej) */
   S.chorusFromCaps = function (caps) {
@@ -376,7 +401,7 @@
   S.hasAudio = (id) => !!(mem[id] && mem[id].an);
   S.loadFile = async function (id, file) {
     const M = S.mem(id), s = App.song(id);
-    M.file = file; M.ab = await file.arrayBuffer(); M.buf = await S.decode(M.ab.slice(0)); M.an = S.analyze(M.buf); M.cuts = null; M.caps = null; M.exact = false; M.align = ''; M.plan = null; M.chorusText = null; M.generated = false; M.notes = [];
+    M.file = file; M.ab = await file.arrayBuffer(); M.buf = await S.decode(M.ab.slice(0)); M.an = S.analyze(M.buf); M.cuts = null; M.caps = null; M.exact = false; M.align = ''; M.plan = null; M.chorusText = null; M.generated = false; M.notes = []; M.prepared = false; M.autoStarted = false;
     if (s.chorusAuto !== false) { s.chorusStart = mmss(M.an.chorus.start); s.chorusAuto = true; }
     s.mp3 = file.name; App.save(); return M.an;
   };
@@ -390,7 +415,7 @@
       const ci = capIdxAt(mapCaps, t); let k = 0; plan.forEach((x, i) => { if (x.from <= Math.max(0, ci)) k = i; });
       return pm.idx[k];
     });
-    const caps = M.exact ? M.caps : (M.approx ? mapCaps : []);
+    const caps = M.exact ? M.caps : (M.approx !== false ? mapCaps : []);
     return { p, an: M.an, imgs: M.imgs, cuts: M.cuts, caps, offset: M.offset, title: s.title || '', buf: M.buf, thumbWords: s.thumbWords };
   };
   /* jedno kliknięcie: napisy ze słuchu, sceny z tekstu, obrazy, refren */
@@ -398,8 +423,8 @@
     const s = App.song(id), p = App.profile(s.profileId), M = S.mem(id), key = App.ai.hasKey(), notes = [];
     let lines = S.lines(s.lyrics); M.exact = false; M.caps = null; M.plan = null; M.chorusText = null; M.align = lines.length ? 'przybliżone' : 'brak tekstu';
     if (key) {
-      try { say('Gemini słucha utworu i spisuje napisy…'); M.caps = await S.aiCaps(M.ab, M.file && M.file.type, lines, M.an.dur); M.exact = true; M.align = 'ze słuchu (Gemini)'; lines = M.caps.map((c) => c.text); }
-      catch (e) { M.caps = null; notes.push('Napisy: ' + e.message + ' Bez dokładnych napisów nie pokazuję tekstu w filmie.'); }
+      try { say('Gemini słucha utworu i spisuje napisy…'); M.caps = await S.aiCaps(M.buf, M.an, lines, say); M.exact = true; if (M.caps.fails && M.caps.fails.length) notes.push('Część nagrania nie została spisana (' + M.caps.fails.length + ' z ' + S.chunks(M.an).length + ' kawałków). Kliknij „Przygotuj teledysk automatycznie”, żeby spróbować ponownie.'); M.align = 'ze słuchu (Gemini)'; lines = M.caps.map((c) => c.text); }
+      catch (e) { M.caps = null; notes.push('Napisy: ' + e.message + ' Pokazuję napisy przybliżone. Kliknij „Przygotuj teledysk automatycznie”, żeby spróbować ponownie.'); }
       if (lines.length) { try { say('Gemini układa sceny pod treść tekstu…'); M.plan = await App.ai.shots(p, s, lines); } catch (e) { M.plan = null; notes.push('Sceny z tekstu: ' + e.message); } }
     } else notes.push('Brak klucza Gemini: napisy i sceny nie będą dopasowane do nagrania (Ustawienia → Klucz Gemini).');
     const list = S.prompts(p, s, M, lines.length), res = []; let fails = 0;
@@ -408,6 +433,12 @@
     if (fails) notes.push(fails + ' obrazów zastąpiłem kafelkami.');
     if (M.exact) { M.chorusText = S.chorusFromCaps(M.caps); if (M.chorusText && s.chorusAuto !== false) { s.chorusStart = mmss(M.chorusText.start); s.chorusAuto = true; } }
     App.save(); M.notes = notes; return notes;
+  };
+  S.runPrepare = async function (id, render) {
+    const M = S.mem(id); if (M.running) return; M.running = true;
+    const say = (m) => { M.status = m; render(); };
+    try { await S.autoPrepare(id, say); M.prepared = true; } catch (e) { M.notes = [e.message || 'Błąd przygotowania']; }
+    M.running = false; M.status = ''; render();
   };
   /* okno Shorta: od początku refrenu, do końca linii, ok. 24 s */
   S.shortWindow = function (id) {
@@ -456,6 +487,7 @@
       const guard = (fn) => async (e) => { if (busy) return; busy = true; const b = e.currentTarget; b.disabled = true; try { await fn(); } catch (er) { toast(er.message || 'Błąd'); } busy = false; b.disabled = false; };
       const showStill = () => { try { const R = S.mk(songId); S.makeRenderer(R)(cv.getContext('2d'), M.an.chorus.start + 0.3, null, { W: cv.width, H: cv.height, t0: 0, dur: M.an.dur }); } catch (er) { /* ignore */ } };
       const renderTo = (short) => guard(async () => {
+        if (M.running) { toast('Trwa przygotowanie teledysku. Poczekaj na koniec.'); return; }
         toast('Renderuję w czasie utworu. Nie wychodź z aplikacji.'); setBar(0);
         const r = await S.renderVideo(songId, short, setBar); const url = URL.createObjectURL(r.blob);
         out.textContent = '';
@@ -464,6 +496,7 @@
         out.appendChild(h('button', { class: 'btn big ghost', onclick: guard(async () => { toast('Zaloguj się i wybierz kanał: ' + p.name); const x = await S.sendPrivate(songId, r.blob, short, setBar); out.appendChild(h('p', { class: 'hint' }, 'Wysłano jako prywatny na kanał „' + x.channel + '”.' + (x.thumbErr ? ' ' + x.thumbErr : ''))); out.appendChild(h('a', { class: 'btn big', href: 'https://studio.youtube.com/video/' + x.id + '/edit', target: '_blank', rel: 'noopener' }, 'Otwórz w YouTube Studio')); }) }, icon('upload', 18), 'Wyślij na YouTube jako prywatny'));
         toast('Gotowe');
       });
+      if (hasAudio && key && !M.prepared && !M.running && !M.autoStarted) { M.autoStarted = true; setTimeout(() => S.runPrepare(songId, render), 50); }
       if (hasAudio) showStill();
       return h('div', { class: 'stack' },
         embedded ? null : h('p', { class: 'muted' }, 'Wczytaj mp3 z Suno. Aplikacja znajdzie tempo i refren, ułoży cięcia w rytm i dopasuje napisy. Wideo powstaje w tej przeglądarce, za darmo.'),
@@ -473,9 +506,9 @@
           h('p', { class: 'muted small' }, 'Czas ' + mmss(M.an.dur) + ' · tempo ok. ' + Math.round(M.an.bpm) + ' bpm · Short od ' + mmss(S.shortWindow(songId).start) + (M.chorusText && s.chorusAuto !== false ? ' (refren z tekstu)' : s.chorusAuto === false ? ' (ustawiony ręcznie)' : ' (refren z dźwięku)') + ' · napisy: ' + (M.align || '—')),
           (M.notes && M.notes.length) ? h('div', { class: 'warnbox' }, M.notes.map((n) => h('p', null, n))) : null,
           (M.an.chorus.cands && M.an.chorus.cands.length) ? h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Początek Shorta, gdyby wyszedł zły fragment:'), h('div', { class: 'row-btns' }, M.an.chorus.cands.map((c) => h('button', { class: 'btn ghost', onclick: () => { s.chorusStart = mmss(c.t); s.chorusAuto = false; App.save(); render(); } }, mmss(c.t))))) : null,
-          h('button', { class: 'btn ghost', onclick: () => { M.approx = !M.approx; render(); } }, M.exact ? 'Napisy: dokładne, ze słuchu' : (M.approx ? 'Napisy przybliżone: włączone (mogą się rozjeżdżać). Kliknij, by wyłączyć' : 'Napisy: wyłączone, bo brak dokładnego dopasowania. Kliknij, by włączyć przybliżone')),
+          h('p', { class: 'muted small' }, M.exact ? 'Napisy włączone: spisane ze słuchu, z dokładnymi czasami. Gdyby były przesunięte, użyj suwaka poniżej.' : (M.running ? 'Napisy włączone (na razie przybliżone, za chwilę zostaną dopasowane do nagrania).' : 'Napisy włączone, ale przybliżone: bez klucza Gemini nie da się ich dokładnie dopasować.')),
           cv,
-          h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: guard(async () => { await S.autoPrepare(songId, toast).then((n) => n.length && toast(n.join('. '))); render(); }) }, icon('spark', 18), 'Przygotuj teledysk automatycznie'),
+          h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: () => S.runPrepare(songId, render) }, icon('spark', 18), M.prepared ? 'Przygotuj od nowa (napisy, sceny, obrazy)' : 'Przygotuj teledysk automatycznie'),
             h('button', { class: 'btn ghost', onclick: guard(async () => { const R = S.mk(songId); setBar(0); await S.play(R, cv, { start: S.shortWindow(songId).start, len: 15, record: false, onProgress: setBar }); showStill(); }) }, icon('refresh', 18), 'Podgląd 15 s z dźwiękiem')),
           bar,
           M.imgs.length ? h('div', { class: 'thumbs' }, M.imgs.map((im) => { const c = document.createElement('canvas'); c.width = 160; c.height = 160; const w = im.naturalWidth || im.width, hh = im.naturalHeight || im.height; c.getContext('2d').drawImage(im, 0, 0, w, hh, 0, 0, 160, 160); c.className = 'thumb'; return c; })) : null,
