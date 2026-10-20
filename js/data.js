@@ -29,11 +29,15 @@
         style: 'aggressive heavy metal fused with gangsta rap, slow crushing stomp groove, heavily syncopated taiko and cinematic war drums, massive low brass hits, downtuned palm-muted guitar riffs, thick sub bass, hard punchy kick and snare, ominous orchestral risers, commanding deep male baritone rap-sung' }
     ],
     insights: [
-      { t: 'good', x: '„Wilk na szczycie” to najlepszy utwór: 24,1 z 49,8 godziny oglądania i 9 z 22 subskrypcji.' },
-      { t: 'good', x: 'Pełne filmy przyciągają nowych widzów (328 wobec 17 z Shortów w 28 dni). Shorty dają wyświetlenia, film daje subskrypcje.' },
-      { t: 'info', x: 'Najlepsze Shorty miały w tytule frazy o motywacji i treningu. Długie opisowe tytuły wypadły słabiej.' },
-      { t: 'warn', x: 'Ruch z wyszukiwarki to praktycznie zero. Frazy w tytule i opisie to darmowy zasięg.' },
-      { t: 'warn', x: 'Widzowie nie wracają (mniej niż 0,1% regularnych). Potrzebna seria i zaproszenie do kanału.' }
+      { t: 'good', x: 'Dane z eksportu (2.09 do 20.10, 5776 wyświetleń, 49,8 h, 22 subskrypcje). „Wilk na szczycie” daje 24,2 h oglądania i 9 subskrypcji, czyli ponad 40 % wszystkich.' },
+      { t: 'good', x: 'Pełne utwory: 6,1 subskrypcji na 1000 wyświetleń i 91 % godzin oglądania. Shorty: 1,6 na 1000. Shorty mają służyć jako zapowiedź pełnego utworu.' },
+      { t: 'good', x: 'Playlisty to 4 % wyświetleń, ale 21 % czasu oglądania (średnio 2:41, 75 % obejrzenia). Każdy nowy utwór trafia na playlistę „Hymny bojowe” i ma ekran końcowy z kolejnym.' },
+      { t: 'good', x: 'Krótkie tytuły w trybie rozkazującym mają najlepszą klikalność: „Nie odpuszczaj” 6,5 %, „Gdzie kończy się krew” 4,5 %, „Wstań!” 3,6 %. Średnia kanału to 2,45 %.' },
+      { t: 'warn', x: '„Żelazo pod stopą” (pełny utwór) miał 2837 wyświetleń miniatury, klikalność 0,85 % i obejrzenie 7 %. Początek nie trzyma widza. Pierwsze 15 sekund musi mieć mocne wejście.' },
+      { t: 'info', x: 'Widownia to 76 % mężczyzn, 59 % to wiek 35 do 54. Grupa 25 do 34 lat to tylko 10 % wyświetleń, ale 37 % czasu oglądania. To najbardziej zaangażowany widz i warto pisać pod niego.' },
+      { t: 'info', x: 'Polska to 66 % wyświetleń. Niemcy i Irlandia oglądają prawie do końca, ale to garstka widzów. Angielskie tytuły i opisy mogą otworzyć te kraje.' },
+      { t: 'warn', x: 'Po 12 dniach publikowania (2 do 13.09) była przerwa do 15.10 i wyświetlenia spadły do ok. 10 dziennie. Regularność liczy się bardziej niż liczba utworów naraz.' },
+      { t: 'warn', x: 'Wyszukiwarka daje 3 % wyświetleń. Tytuły z hashtagami w Shortach nie pomogły. Fraza w pierwszej linii opisu to darmowy zasięg.' }
     ],
     ideas: [
       { id: 'm-lew', title: 'Lew nie ogląda się za siebie', shout: 'Lew', symbol: 'lew', branch: 'trap',
