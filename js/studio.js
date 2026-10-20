@@ -302,84 +302,97 @@
     if (!r.ok) throw new Error('Nie dodano do playlisty (' + r.status + ').');
   };
 
-  /* ---------- ekran studia ---------- */
+  /* ---------- wspólna logika (Studio i kreator) ---------- */
+  S.mem = (id) => (mem[id] = mem[id] || { imgs: [], caps: null, offset: 0, status: '' });
+  S.hasAudio = (id) => !!(mem[id] && mem[id].an);
+  S.loadFile = async function (id, file) {
+    const M = S.mem(id), s = App.song(id);
+    M.file = file; M.ab = await file.arrayBuffer(); M.buf = await S.decode(M.ab.slice(0)); M.an = S.analyze(M.buf); M.cuts = null; M.caps = null; M.generated = false;
+    if (!s.chorusStart) s.chorusStart = mmss(M.an.chorus.start);
+    s.mp3 = file.name; App.save(); return M.an;
+  };
+  S.mk = function (id) {
+    const s = App.song(id), p = App.profile(s.profileId), M = S.mem(id);
+    if (!M.imgs.length) M.imgs = S.prompts(p, s).map((x, i) => procArt(p, i + 3));
+    if (!M.cuts) M.cuts = buildCuts(M.an, M.imgs.length);
+    if (!M.caps) { const ln = S.lines(s.lyrics); M.caps = ln.length ? S.heurCaps(ln, M.an) : []; M.align = ln.length ? 'przybliżone' : 'brak tekstu'; }
+    return { p, an: M.an, imgs: M.imgs, cuts: M.cuts, caps: M.caps, offset: M.offset, title: s.title || '', buf: M.buf, thumbWords: s.thumbWords };
+  };
+  /* jedno kliknięcie: sceny z tekstu, obrazy, napisy zsynchronizowane z piosenką */
+  S.autoPrepare = async function (id, say) {
+    const s = App.song(id), p = App.profile(s.profileId), M = S.mem(id), key = App.ai.hasKey(), notes = [];
+    if (key) { try { say('Gemini układa sceny z tekstu…'); s.shots = await App.ai.shots(p, s); App.save(); } catch (e) { notes.push('sceny z tekstu: ' + e.message); } }
+    const list = S.prompts(p, s), res = []; let fails = 0;
+    for (let i = 0; i < list.length; i++) { say('Generuję obraz ' + (i + 1) + ' z ' + list.length + '…'); try { res.push(await S.genImage(list[i])); } catch (e) { fails++; res.push(procArt(p, i + 3)); } }
+    M.imgs = res; M.cuts = null; M.generated = fails < list.length;
+    if (fails) notes.push(fails + ' obrazów zastąpiłem kafelkami');
+    const ln = S.lines(s.lyrics);
+    if (key && ln.length) { try { say('Gemini słucha utworu i dopasowuje napisy…'); M.caps = await S.aiCaps(M.ab, M.file && M.file.type, ln); M.align = 'dokładne (Gemini)'; } catch (e) { M.caps = null; notes.push('napisy przybliżone: ' + e.message); } }
+    return notes;
+  };
+  S.renderVideo = async function (id, short, onProgress, cv) {
+    const s = App.song(id), M = S.mem(id), R = S.mk(id), W = short ? 720 : 1280, H = short ? 1280 : 720, c = cv || document.createElement('canvas'); c.width = W; c.height = H;
+    const cs = parseT(s.chorusStart), start = short ? (cs !== null && cs < M.an.dur - 8 ? cs : M.an.chorus.start) : 0, len = short ? Math.min(28, M.an.dur - start) : M.an.dur;
+    const blob = await S.play(R, c, { start, len, record: true, short, onProgress });
+    const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+    return { blob, W, H, name: (s.title || 'teledysk').replace(/[^\w\-]+/g, '_') + (short ? '_short' : '') + '.' + ext };
+  };
+  S.sendPrivate = async function (id, blob, short, onProgress) {
+    const s = App.song(id), p = App.profile(s.profileId), pack = App.engine.publish(p, s);
+    const meta = { title: short ? (pack.shortTitles[0] || pack.hooks[0] || s.title) : pack.titles[0], description: pack.description, tags: pack.tags.join(',').length > 480 ? pack.tags.slice(0, 12) : pack.tags, lang: p.lang };
+    await YT.login(p);
+    const vid = await YT.upload(blob, meta, onProgress, p); s.yt = s.yt || {}; s.yt[short ? 'short' : 'full'] = vid; App.save();
+    let thumbErr = null; if (!short) { try { await YT.thumb(vid, await S.thumb(S.mk(id)), p); } catch (e) { thumbErr = e.message; } }
+    return { id: vid, channel: YT.channel, thumbErr };
+  };
+
+  /* ---------- ekran studia (szczegóły) ---------- */
   S.open = function (songId) {
     const K = App.ui.kit, h = App.ui.h, icon = App.ui.icon, toast = App.ui.toast;
-    const s = App.song(songId), p = App.profile(s.profileId);
+    const s = App.song(songId), p = App.profile(s.profileId), M = S.mem(songId);
     loadGsi().catch(() => {});
-    const M = (mem[songId] = mem[songId] || { imgs: [], caps: null, offset: 0, status: '' });
-    K.openSheet('Studio teledysku', (render) => {
-      const hasAudio = !!M.an;
-      const key = App.ai.hasKey();
-      const fileIn = h('input', { type: 'file', accept: 'audio/*,.mp3,.wav,.m4a', onchange: async (e) => {
-        const f = e.target.files[0]; if (!f) return; M.status = 'Analizuję utwór…'; render();
-        try { M.file = f; M.ab = await f.arrayBuffer(); M.buf = await S.decode(M.ab.slice(0)); M.an = S.analyze(M.buf); M.cuts = null; if (!s.chorusStart) { s.chorusStart = mmss(M.an.chorus.start); App.save(); } M.status = ''; M.caps = null; }
-        catch (er) { M.status = 'Nie udało się wczytać pliku: ' + er.message; } render();
-      } });
-      const prompts = S.prompts(p, s);
-      const mk = () => {
-        if (!M.imgs.length) M.imgs = prompts.map((x, i) => procArt(p, i + 3));
-        if (!M.cuts) M.cuts = buildCuts(M.an, M.imgs.length);
-        if (!M.caps) { const ln = S.lines(s.lyrics); M.caps = ln.length ? S.heurCaps(ln, M.an) : []; M.align = ln.length ? 'przybliżone' : 'brak tekstu'; }
-        return { p, an: M.an, imgs: M.imgs, cuts: M.cuts, caps: M.caps, offset: M.offset, title: s.title || '', buf: M.buf, thumbWords: s.thumbWords };
-      };
+    K.openSheet('Studio teledysku', (render) => S.panel(songId, render), { onClose: () => { App.save(); } });
+  };
+  S.panel = function (songId, render, embedded) {
+    loadGsi().catch(() => {});
+    const K = App.ui.kit, h = App.ui.h, icon = App.ui.icon, toast = App.ui.toast;
+    const s = App.song(songId), p = App.profile(s.profileId), M = S.mem(songId);
+    {
+      const hasAudio = !!M.an, key = App.ai.hasKey();
+      const fileIn = h('input', { type: 'file', accept: 'audio/*,.mp3,.wav,.m4a', onchange: async (e) => { const f = e.target.files[0]; if (!f) return; M.status = 'Analizuję utwór…'; render(); try { await S.loadFile(songId, f); M.status = ''; } catch (er) { M.status = 'Nie udało się wczytać pliku: ' + er.message; } render(); } });
       const cv = h('canvas', { width: 640, height: 360, class: 'studio-cv' });
       const out = h('div', { class: 'stack' });
       const bar = h('div', { class: 'mt' }, h('i', { style: { width: '0%' } }));
       const setBar = (v) => { bar.firstChild.style.width = Math.round(v * 100) + '%'; };
       let busy = false;
       const guard = (fn) => async (e) => { if (busy) return; busy = true; const b = e.currentTarget; b.disabled = true; try { await fn(); } catch (er) { toast(er.message || 'Błąd'); } busy = false; b.disabled = false; };
-      const showStill = () => { try { const R = mk(); S.makeRenderer(R)(cv.getContext('2d'), M.an.chorus.start + 0.3, null, { W: cv.width, H: cv.height, t0: 0, dur: M.an.dur }); } catch (er) { /* ignore */ } };
+      const showStill = () => { try { const R = S.mk(songId); S.makeRenderer(R)(cv.getContext('2d'), M.an.chorus.start + 0.3, null, { W: cv.width, H: cv.height, t0: 0, dur: M.an.dur }); } catch (er) { /* ignore */ } };
       const renderTo = (short) => guard(async () => {
-        const R = mk(), W = short ? 720 : 1280, H = short ? 1280 : 720, c = document.createElement('canvas'); c.width = W; c.height = H;
-        const cs = parseT(s.chorusStart), start = short ? (cs !== null && cs < M.an.dur - 8 ? cs : M.an.chorus.start) : 0, len = short ? Math.min(28, M.an.dur - start) : M.an.dur;
         toast('Renderuję w czasie utworu. Nie wychodź z aplikacji.'); setBar(0);
-        const blob = await S.play(R, c, { start, len, record: true, short, onProgress: setBar });
-        const ext = blob.type.includes('mp4') ? 'mp4' : 'webm', name = (s.title || 'teledysk').replace(/[^\w\-]+/g, '_') + (short ? '_short' : '') + '.' + ext;
-        out.textContent = ''; const url = URL.createObjectURL(blob);
-        out.appendChild(h('video', { src: url, controls: true, playsinline: true, class: 'studio-cv', style: { aspectRatio: W + '/' + H, maxHeight: '60vh' } }));
-        out.appendChild(h('button', { class: 'btn big', onclick: () => S.save(blob, name) }, icon('copy', 18), 'Zapisz plik (' + Math.round(blob.size / 1e6) + ' MB)'));
-        const ytbtn = h('button', { class: 'btn big ghost', onclick: guard(async () => {
-          const E = App.engine, pack = E.publish(p, s), meta = { title: short ? (pack.shortTitles[0] || pack.hooks[0] || s.title) : pack.titles[0], description: pack.description, tags: pack.tags.join(',').length > 480 ? pack.tags.slice(0, 12) : pack.tags, lang: p.lang };
-          toast('Zaloguj się i wybierz kanał: ' + p.name); await YT.login(p); toast('Kanał: ' + YT.channel + '. Wysyłam jako prywatny. Nie wychodź z aplikacji.'); setBar(0);
-          const id = await YT.upload(blob, meta, setBar, p); s.yt = s.yt || {}; s.yt[short ? 'short' : 'full'] = id; App.save();
-          if (!short) { try { await YT.thumb(id, await S.thumb(mk()), p); } catch (er) { toast(er.message); } }
-          out.appendChild(h('p', { class: 'hint' }, 'Wysłano jako prywatny. Otwórz w Studio, sprawdź i ustaw na publiczny: https://studio.youtube.com/video/' + id + '/edit'));
-          out.appendChild(h('a', { class: 'btn big', href: 'https://studio.youtube.com/video/' + id + '/edit', target: '_blank', rel: 'noopener' }, 'Otwórz w YouTube Studio')); toast('Film jest na kanale jako prywatny');
-        }) }, icon('upload', 18), 'Wyślij na YouTube jako prywatny');
-        out.appendChild(ytbtn);
+        const r = await S.renderVideo(songId, short, setBar); const url = URL.createObjectURL(r.blob);
+        out.textContent = '';
+        out.appendChild(h('video', { src: url, controls: true, playsinline: true, class: 'studio-cv', style: { aspectRatio: r.W + '/' + r.H, maxHeight: '60vh' } }));
+        out.appendChild(h('button', { class: 'btn big', onclick: () => S.save(r.blob, r.name) }, icon('copy', 18), 'Zapisz plik (' + Math.round(r.blob.size / 1e6) + ' MB)'));
+        out.appendChild(h('button', { class: 'btn big ghost', onclick: guard(async () => { toast('Zaloguj się i wybierz kanał: ' + p.name); const x = await S.sendPrivate(songId, r.blob, short, setBar); out.appendChild(h('p', { class: 'hint' }, 'Wysłano jako prywatny na kanał „' + x.channel + '”.' + (x.thumbErr ? ' ' + x.thumbErr : ''))); out.appendChild(h('a', { class: 'btn big', href: 'https://studio.youtube.com/video/' + x.id + '/edit', target: '_blank', rel: 'noopener' }, 'Otwórz w YouTube Studio')); }) }, icon('upload', 18), 'Wyślij na YouTube jako prywatny'));
         toast('Gotowe');
       });
       if (hasAudio) showStill();
       return h('div', { class: 'stack' },
-        h('p', { class: 'muted' }, 'Wczytaj mp3 z Suno. Aplikacja znajdzie tempo i refren, ułoży cięcia w rytm i dopasuje napisy. Wideo powstaje w tej przeglądarce, za darmo.'),
+        embedded ? null : h('p', { class: 'muted' }, 'Wczytaj mp3 z Suno. Aplikacja znajdzie tempo i refren, ułoży cięcia w rytm i dopasuje napisy. Wideo powstaje w tej przeglądarce, za darmo.'),
         h('label', { class: 'btn big filebtn' }, icon('plus', 18), hasAudio ? 'Zmień plik mp3' : 'Wybierz plik mp3', fileIn),
         M.status ? h('p', { class: 'hint' }, M.status) : null,
         hasAudio ? h('div', { class: 'stack' },
           h('p', { class: 'muted small' }, 'Czas ' + mmss(M.an.dur) + ' · tempo ok. ' + Math.round(M.an.bpm) + ' bpm · refren od ' + mmss(M.an.chorus.start) + ' · napisy: ' + (M.align || '—')),
           cv,
-          h('div', { class: 'row-btns' },
-            h('button', { class: 'btn ghost', onclick: guard(async () => { const R = mk(); setBar(0); await S.play(R, cv, { start: M.an.chorus.start, len: 15, record: false, onProgress: setBar }); showStill(); }) }, icon('refresh', 18), 'Podgląd 15 s z dźwiękiem')),
+          h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: guard(async () => { await S.autoPrepare(songId, toast).then((n) => n.length && toast(n.join('. '))); render(); }) }, icon('spark', 18), 'Przygotuj teledysk automatycznie'),
+            h('button', { class: 'btn ghost', onclick: guard(async () => { const R = S.mk(songId); setBar(0); await S.play(R, cv, { start: M.an.chorus.start, len: 15, record: false, onProgress: setBar }); showStill(); }) }, icon('refresh', 18), 'Podgląd 15 s z dźwiękiem')),
           bar,
-          h('h3', { class: 'sec' }, 'Sceny'),
-          h('p', { class: 'muted small' }, M.imgs.length && M.generated ? 'Obrazy wygenerowane. Możesz wygenerować od nowa.' : 'Teraz używam kafelków w kolorach kanału. Wygeneruj obrazy, żeby sceny pasowały do tekstu.'),
-          h('div', { class: 'row-btns' },
-            key ? h('button', { class: 'btn ghost', onclick: guard(async () => { toast('Gemini pisze sceny…'); s.shots = await App.ai.shots(p, s); App.save(); M.generated = false; render(); }) }, icon('spark', 18), 'Wymyśl sceny z tekstu') : null,
-            h('button', { class: 'btn', onclick: guard(async () => {
-              const list = S.prompts(p, s), res = []; let fails = 0;
-              for (let i = 0; i < list.length; i++) { toast('Obraz ' + (i + 1) + ' z ' + list.length); setBar(i / list.length); try { res.push(await S.genImage(list[i])); } catch (er) { fails++; res.push(procArt(p, i + 3)); } }
-              M.imgs = res; M.cuts = null; M.generated = fails < list.length; setBar(1); toast(fails ? 'Część obrazów zastąpiłem kafelkami (' + fails + ')' : 'Obrazy gotowe'); render();
-            }) }, icon('spark', 18), 'Generuj obrazy')),
           M.imgs.length ? h('div', { class: 'thumbs' }, M.imgs.map((im) => { const c = document.createElement('canvas'); c.width = 160; c.height = 160; const w = im.naturalWidth || im.width, hh = im.naturalHeight || im.height; c.getContext('2d').drawImage(im, 0, 0, w, hh, 0, 0, 160, 160); c.className = 'thumb'; return c; })) : null,
-          h('h3', { class: 'sec' }, 'Napisy'),
-          s.lyrics ? h('div', { class: 'row-btns' },
-            key ? h('button', { class: 'btn ghost', onclick: guard(async () => { toast('Gemini słucha utworu…'); M.caps = await S.aiCaps(M.ab, M.file && M.file.type, S.lines(s.lyrics)); M.align = 'dokładne (Gemini)'; render(); }) }, icon('spark', 18), 'Zsynchronizuj z piosenką') : null) : h('p', { class: 'hint' }, 'Brak tekstu w utworze. Wklej go w karcie utworu, żeby dodać napisy.'),
           h('label', { class: 'field' }, h('span', { class: 'flabel' }, 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'), h('input', { type: 'range', min: -4, max: 4, step: 0.1, value: M.offset, oninput: (e) => { M.offset = +e.target.value; e.target.previousSibling.textContent = 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'; } })),
-          h('h3', { class: 'sec' }, 'Gotowe pliki'),
           h('button', { class: 'btn big', onclick: renderTo(false) }, icon('play', 18), 'Zrenderuj film 16:9 (' + mmss(M.an.dur) + ')'),
           h('button', { class: 'btn big ghost', onclick: renderTo(true) }, icon('play', 18), 'Zrenderuj Short 9:16 z refrenem'),
-          h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(mk()); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '.jpg'); }) }, icon('copy', 18), 'Miniatura 1280×720'),
+          h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(S.mk(songId)); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '.jpg'); }) }, icon('copy', 18), 'Miniatura 1280×720'),
           out) : null);
-    }, { onClose: () => { App.save(); } });
+    }
   };
 })();

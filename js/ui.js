@@ -331,7 +331,7 @@
         h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: st.clean, onchange: (e) => { st.clean = e.target.checked; } }), h('span', null, 'Czysta wersja bez wulgaryzmów w prompcie')),
         h('button', { class: 'btn big', onclick: () => {
           const s = { id: App.uid('song'), profileId: p.id, title: st.title, premise: idea.premise, variantId: st.variant, styleName: st.styleName, styleSig: st.sig, style: st.style, lyrics: st.lyrics, symbol: idea.symbol, scenes: idea.scenes || [], status: 'suno', created: Date.now(), checks: {}, results: {} };
-          App.state.songs.push(s); App.save(); closeSheet(); toast('Zapisano w Utworach'); App.state.ui = {}; UI.go('songs');
+          App.state.songs.push(s); s.step = 1; App.save(); closeSheet(); App.state.ui = {}; UI.go('songs'); setTimeout(() => App.wizard.open(s.id, 1), 260);
         } }, 'Zapisz utwór'));
     });
     if (AI.hasKey() && /\[(Verse 1)\]\s*\n\s*\n/.test(st.lyrics)) setTimeout(writeLyrics, 150);
@@ -352,7 +352,8 @@
     return root;
   }
 
-  function openSong(id) {
+  function openSong(id) { App.wizard.open(id); }
+  function openSongDetails(id) {
     const s = App.song(id); if (!s) return;
     const p = App.profile(s.profileId);
     if (p.id !== App.state.activeProfile) { App.state.activeProfile = p.id; UI.applyTheme(); }
@@ -386,7 +387,7 @@
         s.chorusStart ? h('p', { class: 'muted small' }, 'Wytnij Short od ' + s.chorusStart + ', maksymalnie 18 sekund.') : null,
         h('p', { class: 'flabel' }, 'Harmonogram'), h('ul', { class: 'sched' }, pack.schedule.map((x) => h('li', null, h('span', null, x.k), h('b', null, App.fmtDT(x.at))))),
         h('p', { class: 'flabel' }, 'Miniatura'), row(pack.thumb),
-        h('button', { class: 'btn big', onclick: () => App.studio.open(s.id) }, icon('film', 18), 'Studio teledysku'),
+        h('button', { class: 'btn big', onclick: () => { closeSheet(); setTimeout(() => App.wizard.open(s.id), 280); } }, icon('film', 18), 'Prowadź mnie krok po kroku'),
 
         h('h3', { class: 'sec' }, 'Checklista'),
         h('ul', { class: 'todo' }, E.checklist(p, s).map((c) => h('li', null, h('button', { class: 'cb' + ((s.checks || {})[c.id] ? ' on' : ''), role: 'checkbox', 'aria-checked': (s.checks || {})[c.id] ? 'true' : 'false', onclick: () => { s.checks = s.checks || {}; s.checks[c.id] = !s.checks[c.id]; save(); render(); } }, icon('check', 16), h('span', null, c.x))))),
@@ -397,6 +398,8 @@
     }, { onClose: () => { App.save(); UI.render(); } });
   }
   UI.openSong = openSong;
+  UI.openSongDetails = openSongDetails;
+  UI.copy = copy;
   UI.kit = { openSheet, closeSheet, field, chip, copyBtn };
 
   /* ================= PLAN ================= */
