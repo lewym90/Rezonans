@@ -1,0 +1,17 @@
+{
+  "name": "Rezonans",
+  "short_name": "Rezonans",
+  "description": "Od pomysłu do publikacji. Studio dla twórców muzyki z Suno.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0c09",
+  "theme_color": "#0f0c09",
+  "lang": "pl",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
