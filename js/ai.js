@@ -5,28 +5,35 @@
 
   AI.hasKey = () => !!(App.state.settings.gemini || '').trim();
 
-  AI.pickModel = async function () {
+  AI.models = async function () {
     const s = App.state.settings;
     const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': s.gemini } });
     if (!r.ok) throw new Error('Gemini: nie mogę pobrać listy modeli (' + r.status + '). Sprawdź klucz.');
     const list = ((await r.json()).models || []).filter((m) => (m.supportedGenerationMethods || []).includes('generateContent')).map((m) => m.name.replace(/^models\//, ''));
-    const ver = (n) => { const m = /^gemini-(\d+(?:\.\d+)?)-flash$/.exec(n); return m ? parseFloat(m[1]) : -1; };
-    let best = list.filter((n) => ver(n) > 0).sort((x, y) => ver(y) - ver(x))[0];
-    if (!best) best = list.filter((n) => /flash/.test(n) && !/(lite|image|tts|live|audio|thinking|exp)/.test(n)).sort().reverse()[0];
+    const ver = (n) => { const m = /^gemini-(\d+(?:\.\d+)?)-flash(-lite)?$/.exec(n); return m ? parseFloat(m[1]) - (m[2] ? 0.01 : 0) : -1; };
+    return list.filter((n) => ver(n) > 0).sort((x, y) => ver(y) - ver(x));
+  };
+  AI.pickModel = async function (skip) {
+    const s = App.state.settings, all = await AI.models(), best = all.find((n) => !(skip || []).includes(n));
     if (!best) throw new Error('Gemini: nie znalazłem dostępnego modelu dla tego klucza.');
     s.model = best; App.save(); return best;
   };
-  AI.gemini = async function (prompt, opts, retried) {
-    const s = App.state.settings;
+  AI.gemini = async function (prompt, opts, tried) {
+    const s = App.state.settings; tried = tried || [];
     if (!s.gemini) throw new Error('Brak klucza Gemini. Dodaj go w ustawieniach.');
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(s.model || 'gemini-3.8-flash') + ':generateContent';
+    const model = s.model || 'gemini-3.8-flash'; tried.push(model);
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
     const body = { contents: [{ parts: ((opts && opts.parts) || []).concat([{ text: prompt }]) }], generationConfig: { temperature: (opts && opts.temp) || 0.95 } };
     if (opts && opts.json) body.generationConfig.responseMimeType = 'application/json';
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': s.gemini }, body: JSON.stringify(body) });
     if (!r.ok) {
       let m = r.status + '';
       try { const j = await r.json(); m = (j.error && j.error.message) || m; } catch (e) { /* ignore */ }
-      if (!retried && (r.status === 404 || /no longer available|not found|not supported/i.test(m))) { await AI.pickModel(); return AI.gemini(prompt, opts, true); }
+      const quota = r.status === 429 || /quota|exhausted|rate limit/i.test(m), gone = r.status === 404 || /no longer available|not found|not supported/i.test(m);
+      if ((quota || gone) && tried.length < 6) {
+        try { await AI.pickModel(tried); return AI.gemini(prompt, opts, tried); }
+        catch (e) { if (quota) throw new Error('Darmowy limit Gemini jest na dziś wyczerpany dla wszystkich dostępnych modeli. Odnawia się codziennie (ok. 9:00 czasu polskiego). Do tego czasu użyj „Kopiuj prompt do czatu AI”, wklej tekst z czatu i zapisz utwór.'); throw e; }
+      }
       throw new Error('Gemini: ' + m);
     }
     const j = await r.json();
