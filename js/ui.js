@@ -294,7 +294,13 @@
       lyrics: E.skeleton(p, idea), style: '' };
     const avoid = E.styleAvoid(p); const roll = () => { const g = E.genStyle(p, avoid); st.base = g.style; st.moods = []; st.style = g.style; st.styleName = g.name; st.sig = g.sig; avoid.unshift(g.sig); };
     roll();
-    openSheet('Pakiet dla Suno', (render) => {
+    const writeLyrics = async () => {
+      if (st.busy) return; st.busy = true; if (st.rerender) st.rerender();
+      try { st.lyrics = await AI.lyrics(p, Object.assign({}, idea, { title: st.title }), st.variant, st.clean); toast('Pełny tekst gotowy. Przeczytaj go uważnie.'); }
+      catch (er) { toast(er.message); }
+      st.busy = false; if (st.rerender) st.rerender();
+    };
+    st.rerender = openSheet('Pakiet dla Suno', (render) => {
       const styleTa = h('textarea', { rows: 7, value: st.style, oninput: (e) => { st.style = e.target.value; } });
       const lyrTa = h('textarea', { rows: 14, class: 'lyr', value: st.lyrics, oninput: (e) => { st.lyrics = e.target.value; scanBox(); } });
       const warn = h('div', { class: 'warnbox' });
@@ -316,10 +322,11 @@
         h('div', null, h('span', { class: 'flabel' }, 'Dopasuj brzmienie'), h('div', { class: 'chips' }, App.DATA.moods.map((m) => chip(m.n, st.moods.includes(m.id), () => { st.moods = st.moods.includes(m.id) ? st.moods.filter((x) => x !== m.id) : st.moods.concat(m.id); st.style = [st.base].concat(st.moods.map((id) => (App.DATA.moods.find((x) => x.id === id) || {}).en)).filter(Boolean).join(', '); render(); })))),
         field('Styl (Styles)', styleTa, [counter(styleTa, 1000), copyBtn(() => st.style, 'Styl')]),
         field('Tekst (Lyrics)', lyrTa, [counter(lyrTa, 5000), copyBtn(() => st.lyrics, 'Tekst')]),
-        empty ? h('p', { class: 'hint' }, 'Zwrotki są puste. Refren i hasło gotowe. Dopisz zwrotki albo wygeneruj cały tekst poniżej.') : null,
+        (empty || st.busy) ? h('div', { class: 'warnbox' }, h('p', null, icon('shield', 18), st.busy ? 'Piszę pełny tekst z nowymi zwrotkami…' : 'Zwrotki są puste. Suno powtórzy wtedy sam refren w kółko. Napisz pełny tekst przed wklejeniem do Suno.'),
+          (!st.busy) ? (AI.hasKey() ? h('button', { class: 'btn', onclick: writeLyrics }, icon('spark', 18), 'Napisz pełny tekst') : h('button', { class: 'btn', onclick: () => copy(E.chatPrompt(p, Object.assign({}, idea, { title: st.title }), st.variant, st.clean), 'Prompt skopiowany. Wklej go do czatu AI i wklej tekst tutaj.') }, icon('copy', 18), 'Kopiuj prompt do czatu AI')) : null) : null,
         warn,
         h('div', { class: 'row-btns' },
-          AI.hasKey() ? h('button', { class: 'btn', onclick: async (e) => { const b = e.currentTarget; b.disabled = true; b.textContent = 'Piszę tekst…'; try { st.lyrics = await AI.lyrics(p, Object.assign({}, idea, { title: st.title }), st.variant, st.clean); toast('Tekst gotowy. Przeczytaj go uważnie.'); } catch (er) { toast(er.message); } render(); } }, icon('spark', 18), 'Wygeneruj tekst (Gemini)') : null,
+          AI.hasKey() ? h('button', { class: 'btn', onclick: writeLyrics }, icon('spark', 18), 'Napisz tekst od nowa (Gemini)') : null,
           h('button', { class: 'btn ghost', onclick: () => copy(E.chatPrompt(p, Object.assign({}, idea, { title: st.title }), st.variant, st.clean), 'Prompt skopiowany. Wklej go do dowolnego czatu AI.') }, icon('copy', 18), 'Kopiuj prompt do czatu')),
         h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: st.clean, onchange: (e) => { st.clean = e.target.checked; } }), h('span', null, 'Czysta wersja bez wulgaryzmów w prompcie')),
         h('button', { class: 'btn big', onclick: () => {
@@ -327,6 +334,7 @@
           App.state.songs.push(s); App.save(); closeSheet(); toast('Zapisano w Utworach'); App.state.ui = {}; UI.go('songs');
         } }, 'Zapisz utwór'));
     });
+    if (AI.hasKey() && /\[(Verse 1)\]\s*\n\s*\n/.test(st.lyrics)) setTimeout(writeLyrics, 150);
   }
 
   /* ================= UTWORY ================= */

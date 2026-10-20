@@ -92,7 +92,7 @@
     const lines = [];
     const chorus = [];
     if (p.lang === 'pl' && idea.pairs) {
-      idea.pairs.forEach((x) => chorus.push(idea.shout + '! ' + x));
+      idea.pairs.slice(0, 3).forEach((x) => chorus.push(idea.shout + '! ' + x));
       chorus.push(idea.closing);
     } else {
       chorus.push(idea.hook || idea.title, idea.answer || '', idea.hook || idea.title);
@@ -106,18 +106,29 @@
   E.chatPrompt = function (p, idea, variantId, clean) {
     const v = E.variantOf(p, variantId);
     const pl = p.lang === 'pl';
-    const hook = pl ? 'Refren: cztery linie w formie „' + (idea.shout || 'Hasło') + '! Słowo — krótka fraza”, potem linia tytułowa: „' + (idea.closing || idea.title) + '”.' : 'Chorus: start with the line “' + (idea.hook || idea.title) + '”, answer with “' + (idea.answer || '') + '”, keep it plain and sayable.';
+    const seed = pl
+      ? 'Materiał na refren (skróć do 4 mocnych linii, nie powtarzaj schematu w zwrotkach): hasło „' + (idea.shout || '') + '”, pomysły: ' + (idea.pairs || []).join('; ') + '; linia zamykająca: „' + (idea.closing || idea.title) + '”.'
+      : 'Chorus seed (keep it to 4 short lines): “' + (idea.hook || idea.title) + '” / “' + (idea.answer || '') + '”.';
     return [
-      'Napisz tekst piosenki do Suno dla kanału „' + p.name + '”.',
+      'Napisz kompletny tekst piosenki do Suno dla kanału „' + p.name + '”. To ma być prawdziwa piosenka, którą da się słuchać w samochodzie, a nie jeden wers powtarzany w kółko.',
       'Język tekstu: ' + (pl ? 'polski' : 'angielski') + '. Gatunek i wokal: ' + p.dna.genre + '; ' + p.dna.voice + '.',
       'Tytuł: ' + idea.title + '. Założenie: ' + (idea.premise || '') + '.',
-      hook,
-      'Struktura (nagłówki w nawiasach kwadratowych): ' + App.DATA.structure.join(', ') + '.',
-      'Zasady: jedna spójna metafora od początku do końca, gęste rymy wewnętrzne, krótkie wersy łatwe do rapowania, bez nawiasów okrągłych i bez instrukcji dla wykonawcy w tekście, zwrotki 4 do 8 linii.',
+      seed,
+      'Struktura z nagłówkami w nawiasach kwadratowych: [Intro] (1 do 2 krótkich linii), [Verse 1] (8 linii), [Pre-Chorus] (2 do 4 linie), [Chorus] (4 linie), [Verse 2] (8 linii), [Chorus], [Bridge] (4 linie), [Verse 3] (4 do 8 linii, kulminacja), [Final Chorus] (4 linie z jedną zmienioną linią), [Outro] (1 do 2 linii).',
+      'Każda zwrotka ma być inna: Verse 1 pokazuje sytuację i konkretne obrazy, Verse 2 rozwija historię i wprowadza napięcie, Bridge zmienia perspektywę lub rytm, Verse 3 domyka przemianę. Co najmniej 30 różnych linii poza refrenem.',
+      'Konkrety zamiast ogólników: nazwy rzeczy, miejsc, czynności i liczby. Jedna spójna metafora. Rymy czyste lub wewnętrzne, wersy po 8 do 12 sylab, łatwe do śpiewania lub rapowania. Refren krótki i łatwy do zapamiętania, ale nie schematyczny.',
+      'Zabronione: powtarzanie tej samej linii poza refrenem, puste sekcje, nawiasy okrągłe i instrukcje dla wykonawcy w tekście.',
       clean ? 'Zakaz wulgaryzmów i przekleństw.' : 'Wulgaryzmy ogranicz do minimum.',
-      'Limit: do 4500 znaków łącznie. Zwróć tylko sam tekst z nagłówkami sekcji.',
+      'Limit: do 4500 znaków łącznie. Zwróć tylko tekst z nagłówkami sekcji.',
       v ? 'Brzmienie (dla kontekstu): ' + v.style : ''
     ].filter(Boolean).join('\n');
+  };
+  E.lyricsQuality = function (text) {
+    const lines = String(text || '').split('\n').map((l) => l.trim());
+    let sec = '', verseLines = 0; const body = [];
+    lines.forEach((l) => { if (/^\[.*\]$/.test(l)) sec = l.toLowerCase(); else if (l) { body.push(l.toLowerCase()); if (/verse|bridge|pre/.test(sec)) verseLines++; } });
+    const unique = new Set(body).size;
+    return { unique, verseLines, total: body.length, ok: verseLines >= 14 && unique >= 24 };
   };
 
   /* ---------- wulgaryzmy ---------- */

@@ -25,8 +25,14 @@
 
   AI.lyrics = async function (p, idea, variantId, clean) {
     const prompt = App.engine.chatPrompt(p, idea, variantId, clean);
-    let t = await AI.gemini(prompt);
-    t = t.replace(/^```\w*\n?|```$/g, '').trim();
+    const clear = (t) => t.replace(/^```\w*\n?|```$/g, '').trim();
+    let t = clear(await AI.gemini(prompt, { temp: 1 }));
+    let q = App.engine.lyricsQuality(t);
+    if (!q.ok) {
+      t = clear(await AI.gemini(prompt + '\nPoprzednia wersja miała za mało różnych linii (' + q.unique + ') i za krótkie zwrotki. Napisz od nowa: pełne zwrotki z nową treścią w każdej, min. 30 unikalnych linii.', { temp: 1 }));
+      q = App.engine.lyricsQuality(t);
+    }
+    if (!q.ok) throw new Error('Tekst wyszedł za krótki lub powtarzalny. Kliknij ponownie.');
     return t;
   };
 
