@@ -33,3 +33,16 @@ Ustawienia → Pobierz kopię. Dane (kanały, utwory) są w localStorage tej prz
 
 ## Studio teledysku
 W karcie utworu: „Studio teledysku”. Wczytaj mp3 z Suno, aplikacja znajdzie tempo i refren, ułoży cięcia w rytm, dopasuje napisy i wyrenderuje film 16:9, Short 9:16 oraz miniaturę. Obrazy generuje Worker z folderu `worker/` (Cloudflare Workers AI, darmowy limit). Adres Workera wpisz w Ustawieniach.
+
+## Wysyłka na YouTube jako prywatny film
+1. Wejdź na console.cloud.google.com i utwórz projekt.
+2. APIs & Services → Library → włącz YouTube Data API v3.
+3. APIs & Services → OAuth consent screen → External → wypełnij nazwę aplikacji i swój e-mail. W sekcji Test users dodaj swój adres Google i zapisz. Zostaw aplikację w trybie Testing.
+4. Credentials → Create credentials → OAuth client ID → Web application. W Authorized JavaScript origins dodaj `https://lewym90.github.io`. Skopiuj Client ID.
+5. W aplikacji: Ustawienia → Google OAuth Client ID → wklej.
+6. W Studio teledysku po renderze kliknij „Wyślij na YouTube jako prywatny”. W oknie Google wybierz konto i kanał (Melodia Maszyny albo Willa Hayes). Film trafia jako prywatny, publiczny ustawiasz sam w YouTube Studio.
+
+Projekty API bez weryfikacji i tak zawsze wgrywają filmy jako prywatne.
+
+## Dane ze Studio
+Plan → Importuj dane ze Studio. Wybierz pliki ZIP lub CSV wyeksportowane z Analityki (Tryb zaawansowany, zakres Cały czas). Aplikacja odświeży statystyki, wnioski i przewodnik.

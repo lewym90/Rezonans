@@ -246,6 +246,50 @@
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 500);
   };
 
+
+  /* ---------- wysyłka na YouTube (prywatny film) ---------- */
+  const YT = (S.yt = { token: null, exp: 0 });
+  function loadGsi() {
+    if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+    return new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'https://accounts.google.com/gsi/client'; el.onload = res; el.onerror = () => rej(new Error('Nie udało się połączyć z Google. Sprawdź internet.')); document.head.appendChild(el); });
+  }
+  YT.login = async function () {
+    if (YT.token && Date.now() < YT.exp - 60000) return YT.token;
+    const cid = (App.state.settings.ytClient || '').trim();
+    if (!cid) throw new Error('Wpisz Client ID Google w Ustawieniach. Instrukcja jest w README.');
+    await loadGsi();
+    return new Promise((res, rej) => {
+      const tc = google.accounts.oauth2.initTokenClient({ client_id: cid, scope: 'https://www.googleapis.com/auth/youtube', prompt: 'select_account',
+        callback: (r) => { if (r.error) rej(new Error('Logowanie Google: ' + r.error)); else { YT.token = r.access_token; YT.exp = Date.now() + (r.expires_in || 3000) * 1000; res(YT.token); } },
+        error_callback: (e) => rej(new Error('Logowanie przerwane' + (e && e.type ? ' (' + e.type + ')' : ''))) });
+      tc.requestAccessToken();
+    });
+  };
+  YT.upload = async function (blob, meta, onProgress) {
+    const token = await YT.login();
+    const body = { snippet: { title: meta.title.slice(0, 100), description: meta.description.slice(0, 4900), tags: meta.tags, categoryId: '10', defaultLanguage: meta.lang, defaultAudioLanguage: meta.lang }, status: { privacyStatus: 'private', selfDeclaredMadeForKids: false } };
+    const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': blob.type || 'video/mp4', 'X-Upload-Content-Length': String(blob.size) }, body: JSON.stringify(body) });
+    if (!init.ok) { let m = init.status + ''; try { m = (await init.json()).error.message; } catch (e) { /* ignore */ } throw new Error('YouTube odrzucił wysyłkę: ' + m); }
+    const loc = init.headers.get('Location'); if (!loc) throw new Error('YouTube nie zwrócił adresu wysyłki.');
+    const res = await new Promise((ok, no) => {
+      const x = new XMLHttpRequest(); x.open('PUT', loc); x.setRequestHeader('Content-Type', blob.type || 'video/mp4');
+      x.upload.onprogress = (e) => e.lengthComputable && onProgress && onProgress(e.loaded / e.total);
+      x.onload = () => (x.status >= 200 && x.status < 300 ? ok(JSON.parse(x.responseText)) : no(new Error('Wysyłka przerwana: ' + x.status + ' ' + (x.responseText || '').slice(0, 160))));
+      x.onerror = () => no(new Error('Przerwano połączenie podczas wysyłki. Spróbuj ponownie przy lepszym Wi-Fi.')); x.send(blob);
+    });
+    return res.id;
+  };
+  YT.thumb = async function (videoId, blob) {
+    const token = await YT.login();
+    const r = await fetch('https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=' + videoId, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'image/jpeg' }, body: blob });
+    if (!r.ok) throw new Error('Miniatura nie została ustawiona (' + r.status + '). Ustaw ją ręcznie w Studio.');
+  };
+  YT.playlist = async function (videoId, playlistId) {
+    const token = await YT.login();
+    const r = await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } } }) });
+    if (!r.ok) throw new Error('Nie dodano do playlisty (' + r.status + ').');
+  };
+
   /* ---------- ekran studia ---------- */
   S.open = function (songId) {
     const K = App.ui.kit, h = App.ui.h, icon = App.ui.icon, toast = App.ui.toast;
@@ -268,7 +312,7 @@
       };
       const cv = h('canvas', { width: 640, height: 360, class: 'studio-cv' });
       const out = h('div', { class: 'stack' });
-      const bar = h('div', { class: 'meter' }, h('i', { style: { width: '0%' } }));
+      const bar = h('div', { class: 'mt' }, h('i', { style: { width: '0%' } }));
       const setBar = (v) => { bar.firstChild.style.width = Math.round(v * 100) + '%'; };
       let busy = false;
       const guard = (fn) => async (e) => { if (busy) return; busy = true; const b = e.currentTarget; b.disabled = true; try { await fn(); } catch (er) { toast(er.message || 'Błąd'); } busy = false; b.disabled = false; };
@@ -282,6 +326,15 @@
         out.textContent = ''; const url = URL.createObjectURL(blob);
         out.appendChild(h('video', { src: url, controls: true, playsinline: true, class: 'studio-cv', style: { aspectRatio: W + '/' + H, maxHeight: '60vh' } }));
         out.appendChild(h('button', { class: 'btn big', onclick: () => S.save(blob, name) }, icon('copy', 18), 'Zapisz plik (' + Math.round(blob.size / 1e6) + ' MB)'));
+        const ytbtn = h('button', { class: 'btn big ghost', onclick: guard(async () => {
+          const E = App.engine, pack = E.publish(p, s), meta = { title: short ? (pack.shortTitles[0] || pack.hooks[0] || s.title) : pack.titles[0], description: pack.description, tags: pack.tags.join(',').length > 480 ? pack.tags.slice(0, 12) : pack.tags, lang: p.lang };
+          toast('Wysyłam na YouTube jako prywatny. Nie wychodź z aplikacji.'); setBar(0);
+          const id = await YT.upload(blob, meta, setBar); s.yt = s.yt || {}; s.yt[short ? 'short' : 'full'] = id; App.save();
+          if (!short) { try { await YT.thumb(id, await S.thumb(mk())); } catch (er) { toast(er.message); } }
+          out.appendChild(h('p', { class: 'hint' }, 'Wysłano jako prywatny. Otwórz w Studio, sprawdź i ustaw na publiczny: https://studio.youtube.com/video/' + id + '/edit'));
+          out.appendChild(h('a', { class: 'btn big', href: 'https://studio.youtube.com/video/' + id + '/edit', target: '_blank', rel: 'noopener' }, 'Otwórz w YouTube Studio')); toast('Film jest na kanale jako prywatny');
+        }) }, icon('upload', 18), 'Wyślij na YouTube jako prywatny');
+        out.appendChild(ytbtn);
         toast('Gotowe');
       });
       if (hasAudio) showStill();

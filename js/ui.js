@@ -37,6 +37,7 @@
     sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
     film: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9.5 5 2.5-5 2.5z"/>',
     play: '<path d="m8 5 11 7-11 7z"/>',
+    upload: '<path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
     spark: '<path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17v4M17 19h4"/>',
     refresh: '<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -391,10 +392,44 @@
   UI.kit = { openSheet, closeSheet, field, chip, copyBtn };
 
   /* ================= PLAN ================= */
+
+  /* ---------- przewodnik i import danych ---------- */
+  function openAnalyticsImport(p) {
+    openSheet('Dane ze YouTube Studio', (render) => {
+      const fi = h('input', { type: 'file', multiple: true, accept: '.zip,.csv', onchange: async (e) => {
+        const files = Array.from(e.target.files || []); if (!files.length) return;
+        try { const b = await App.analytics.readFiles(files); const a = App.analytics.compute(b); App.analytics.apply(p, a); toast('Zaimportowano ' + a.videos.length + ' filmów'); closeSheet(); UI.render(); }
+        catch (er) { toast(er.message || 'Nie udało się odczytać plików'); }
+      } });
+      const a = p.analytics;
+      return h('div', { class: 'stack' },
+        h('p', { class: 'muted' }, 'Studio na komputerze → Analityka → Tryb zaawansowany → zakres „Cały czas” → ikona strzałki w dół → Plik CSV. Zrób to dla zakładek Treść (wymagana), Źródło ruchu, Region, Płeć i Wiek. Wybierz pobrane pliki ZIP lub CSV naraz.'),
+        a ? h('p', { class: 'hint' }, 'Ostatni import: ' + App.fmtDT(new Date(a.at)) + ', ' + a.videos.length + ' filmów.') : null,
+        h('label', { class: 'btn big filebtn' }, icon('plus', 18), 'Wybierz pliki ze Studio', fi),
+        h('p', { class: 'muted small' }, 'Dane zostają w tej przeglądarce. Import odświeża statystyki kanału, wnioski i przewodnik.'));
+    });
+  }
+  function guideBlock(p) {
+    const g = App.analytics.guide(p), ph = g.phase, done = (p.guideDone = p.guideDone || {});
+    const eta = g.etaDays ? (g.etaDays > 700 ? 'ok. ' + Math.round(g.etaDays / 365) + ' lat' : 'ok. ' + g.etaDays + ' dni') : '—';
+    return h('section', { class: 'block' },
+      h('h3', null, 'Przewodnik: ' + ph.n), h('p', { class: 'muted small' }, ph.goal),
+      meter('Subskrypcje do 1000', g.subs + ' z 1000', Math.min(100, g.subs / 10)), meter('Godziny do 4000', String(g.hours).replace('.', ',') + ' z 4000', Math.min(100, g.hours / 40)),
+      h('p', { class: 'muted small' }, 'Czas do progu przy obecnym tempie: ' + eta + '. Zasady Partner Program sprawdź w Studio, bo YouTube je zmienia.'),
+      h('h4', { class: 'flabel' }, 'Najważniejsze teraz'),
+      h('ul', { class: 'ins' }, g.recs.slice(0, 5).map((r) => h('li', { class: 'info' }, h('i'), h('span', null, r.x)))),
+      h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: () => openAnalyticsImport(p) }, icon('refresh', 18), p.analytics ? 'Zaktualizuj dane ze Studio' : 'Importuj dane ze Studio')),
+      h('h4', { class: 'flabel' }, 'Droga od A do Z'),
+      h('div', { class: 'stack' }, App.analytics.phases.map((f) => h('details', { class: 'phase', open: f.id === ph.id },
+        h('summary', null, h('b', null, f.n), h('span', { class: 'muted small' }, f.from + ' do ' + (f.to > 1e6 ? '∞' : f.to) + ' subskrypcji')),
+        h('ul', { class: 'todo' }, f.steps.map((s) => h('li', null, h('button', { class: 'cb' + (done[s[0]] ? ' on' : ''), role: 'checkbox', 'aria-checked': done[s[0]] ? 'true' : 'false', onclick: () => { done[s[0]] = !done[s[0]]; App.save(); UI.render(); } }, icon('check', 16), h('span', null, s[1])))))))));
+  }
+
   function renderPlan() {
     const p = App.profile(), week = E.week(p), td = new Date().getDay();
     const root = h('div', { class: 'screen' });
     root.appendChild(header('Plan', 'Dwie premiery w tygodniu, reszta to Shorty i wnioski'));
+    root.appendChild(guideBlock(p));
     root.appendChild(h('div', { class: 'list' }, week.map((w) => h('div', { class: 'row plan' + (w.d === td ? ' today' : ''), 'data-k': w.k }, h('i', { class: 'dot', 'aria-hidden': 'true' }), h('div', { class: 'row-m' }, h('b', null, w.n.replace(/^./, (c) => c.toUpperCase()) + ': ' + w.x), h('span', { class: 'muted' }, w.s))))));
     const time = h('input', { type: 'time', value: p.publish.time, onchange: (e) => { p.publish.time = e.target.value || p.publish.time; App.save(); toast('Godzina zapisana'); } });
     root.appendChild(h('section', { class: 'block' }, h('h3', null, 'Godzina premiery'), field('Czas warszawski', time), h('p', { class: 'muted small' }, p.publish.note),
@@ -474,6 +509,7 @@
       field('Klucz Gemini (darmowy, aistudio.google.com)', h('input', { type: 'password', value: s.gemini, autocomplete: 'off', placeholder: 'AIza…', oninput: (e) => { s.gemini = e.target.value.trim(); App.save(); } })),
       field('Model Gemini', h('input', { value: s.model, oninput: (e) => { s.model = e.target.value.trim(); App.save(); } })),
       field('Adres generatora obrazów (Cloudflare Worker)', h('input', { value: s.img || '', placeholder: 'https://…workers.dev/', oninput: (e) => { s.img = e.target.value.trim(); App.save(); } })),
+      field('Google OAuth Client ID (wysyłka na YouTube)', h('input', { value: s.ytClient || '', placeholder: '…apps.googleusercontent.com', oninput: (e) => { s.ytClient = e.target.value.trim(); App.save(); } })),
       field('Klucz YouTube Data API (opcjonalny)', h('input', { type: 'password', value: s.yt, autocomplete: 'off', placeholder: 'AIza…', oninput: (e) => { s.yt = e.target.value.trim(); App.save(); } })),
       h('h3', { class: 'sec' }, 'Kopia zapasowa'),
       h('div', { class: 'row-btns' },

@@ -182,3 +182,10 @@ h3.sec { padding: 0; } #ideaOut h3.sec { padding: 0 20px; margin-top: 22px; } .s
 .studio-cv { width: 100%; height: auto; display: block; border-radius: 16px; background: #000; box-shadow: inset 0 0 0 1px var(--line); }
 .thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .thumbs .thumb { width: 100%; height: auto; border-radius: 12px; display: block; }
+.phase { border-radius: 16px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--line); padding: 4px 14px; }
+.phase summary { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 0; cursor: pointer; list-style: none; }
+.phase summary::-webkit-details-marker { display: none; }
+.phase[open] summary { border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+
+.block h4.flabel { margin-top: 18px; }
+.block .ins { margin-bottom: 14px; }
