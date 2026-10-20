@@ -120,10 +120,13 @@
         style: 'faster two-lane country, 108 bpm, electric guitar, dry snare on 2 and 4, no pedal steel, intimate female vocal in front of the mix, clear diction, close-mic, no rap, no scream, no opera, no EDM, no auto-tune' }
     ],
     insights: [
-      { t: 'good', x: 'Cały ruch dają Shorty: 431, 369, 216, 136 i 105 wyświetleń. Długie filmy mają po kilkadziesiąt.' },
-      { t: 'good', x: 'Tytuł Shorta w formie zdania z tekstu („I waited too long”) działa lepiej niż „Nazwa — late night country”.' },
-      { t: 'warn', x: '99,3% widzów to nowi, a w 90 dni przybyły tylko 3 subskrypcje. Shorty nie zamieniają widza w subskrybenta.' },
-      { t: 'info', x: 'Odbiorcy: Polska 17,8%, Japonia 3,8%, USA 2,9% (reszta nieznana). Godzina pod USA nie musi być trafiona.' }
+      { t: 'good', x: 'Dane z eksportu (7 do 20.10): 1890 wyświetleń, 3,2 h, 2 subskrypcje. 88 % wyświetleń dają Shorty (1665), pełne utwory tylko 220.' },
+      { t: 'good', x: 'Shorty z linią z refrenu w tytule wygrywają: „Don\'t look back twice” 431, „I waited too long” 369, „I\'m already walking” 216 wyświetleń. Shorty mają obejrzenie 62 do 90 %.' },
+      { t: 'warn', x: 'Pełne utwory z dopiskiem „— late night country” w tytule mają klikalność 0,75 do 1,2 % przy ok. 3000 wyświetleń miniatury każdy i obejrzenie 11 do 30 %. Zmień tytuł na linię z tekstu i popraw miniaturę.' },
+      { t: 'warn', x: 'Składanki „Late Drive” (10 i 18 minut) dostały 5 wyświetleń łącznie. Nie publikuj składanek, dopóki kanał nie ma stałej widowni.' },
+      { t: 'warn', x: 'Shorty dają ok. 1,8 subskrypcji na 1000 wyświetleń, a pełne utwory żadnej. Każdy Short powinien kierować do pełnego utworu (powiązany film w Shorcie, przypięty komentarz).' },
+      { t: 'info', x: 'Rozkład płci 50/50. Wiek i kraje są za małe, by cokolwiek wnioskować. Polska to 18 % wyświetleń mimo angielskich tytułów.' },
+      { t: 'info', x: 'Kanał ma 14 dni. Do progu monetyzacji ścieżką Shortów brakuje ogromnej liczby wyświetleń, więc stawiamy na budowę widowni pełnymi utworami z teledyskiem i serią.' }
     ],
     ideas: [
       { id: 'w-porch', title: 'The porch light stays on', hook: 'I left the porch light on', answer: 'In case you change your mind', symbol: 'porch light',
