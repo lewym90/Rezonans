@@ -9,7 +9,7 @@
     const s = App.state.settings;
     if (!s.gemini) throw new Error('Brak klucza Gemini. Dodaj go w ustawieniach.');
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(s.model || 'gemini-2.5-flash') + ':generateContent';
-    const body = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: (opts && opts.temp) || 0.95 } };
+    const body = { contents: [{ parts: ((opts && opts.parts) || []).concat([{ text: prompt }]) }], generationConfig: { temperature: (opts && opts.temp) || 0.95 } };
     if (opts && opts.json) body.generationConfig.responseMimeType = 'application/json';
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': s.gemini }, body: JSON.stringify(body) });
     if (!r.ok) {
@@ -43,6 +43,15 @@
     const raw = await AI.gemini(prompt, { json: true });
     const arr = JSON.parse(raw);
     return (Array.isArray(arr) ? arr : [arr]).slice(0, 3).map((x) => Object.assign({ id: App.uid('idea'), branch: (p.styleVariants[0] || {}).id }, x));
+  };
+
+  AI.shots = async function (p, song) {
+    const prompt = ['Zaprojektuj 6 różnych kadrów do teledysku piosenki „' + song.title + '” (kanał ' + p.name + ').',
+      'Tekst piosenki:\n' + (song.lyrics || song.premise || '').slice(0, 1800),
+      'Każdy kadr to jeden opis obrazu po ANGIELSKU, do generatora obrazów: konkretny obiekt lub miejsce, światło, kompozycja. Bez twarzy, bez ludzi z bliska, bez napisów i logo. Różne plany: szeroki, zbliżenie, szczegół, sylwetka. Jeden spójny świat wizualny: ' + (p.visual || p.dna.genre) + '.',
+      'Zwróć JSON: tablica 6 stringów.'].join('\n');
+    const arr = JSON.parse(await AI.gemini(prompt, { json: true, temp: 0.9 }));
+    return arr.map(String).slice(0, 6);
   };
 
   AI.refinePack = async function (p, song, pack) {

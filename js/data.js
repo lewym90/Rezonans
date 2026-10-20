@@ -8,6 +8,7 @@
     tagline: 'Trap, metal i orkiestra. Motywacja, trening, siła.',
     palette: { bg: '#0f0c09', bg2: '#1c140b', accent: '#e3b454', accent2: '#41d1f5' },
     stats: { subs: 22, hours: 49.8, views: 5776 },
+    visual: 'epic cinematic photograph, dark teal and gold color grade, volumetric light, smoke and embers, heroic, hyperreal, 35mm, no text, no watermark',
     publish: { time: '20:30', note: 'Wrzucałeś dotąd między 20 a 22. Sprawdź w Studio, kiedy widzowie są online, i porównaj z wynikami.' },
     dna: {
       genre: 'agresywny polski hip-hop i trap z orkiestrą oraz metalowy marsz wojenny',
@@ -94,6 +95,7 @@
     tagline: 'Late night country. Spokojne, nocne, szczere.',
     palette: { bg: '#080c13', bg2: '#101a2a', accent: '#f2a65a', accent2: '#7fa9d6' },
     stats: { subs: 2, hours: 3.2, views: 1890 },
+    visual: 'cinematic still life photograph, no people, warm amber late-night light, shallow depth of field, 35mm film grain, nostalgic, no text, no watermark',
     publish: { time: '22:30', note: 'Zgodnie z dotychczasowym planem. Dane pokazują Polskę, Japonię i USA, więc warto porównać inne godziny.' },
     dna: {
       genre: 'late night country, spokojny i melancholijny',

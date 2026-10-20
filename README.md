@@ -30,3 +30,6 @@ Ustawienia → Pobierz kopię. Dane (kanały, utwory) są w localStorage tej prz
 
 ## Struktura
 `index.html`, `css/app.css`, `js/` (data, store, engine, ai, ui, main), `sw.js`, `manifest.webmanifest`, `icons/`.
+
+## Studio teledysku
+W karcie utworu: „Studio teledysku”. Wczytaj mp3 z Suno, aplikacja znajdzie tempo i refren, ułoży cięcia w rytm, dopasuje napisy i wyrenderuje film 16:9, Short 9:16 oraz miniaturę. Obrazy generuje Worker z folderu `worker/` (Cloudflare Workers AI, darmowy limit). Adres Workera wpisz w Ustawieniach.

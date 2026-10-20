@@ -35,6 +35,8 @@
     close: '<path d="m6 6 12 12M18 6 6 18"/>',
     chev: '<path d="m9 6 6 6-6 6"/>',
     sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+    film: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9.5 5 2.5-5 2.5z"/>',
+    play: '<path d="m8 5 11 7-11 7z"/>',
     spark: '<path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17v4M17 19h4"/>',
     refresh: '<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -375,6 +377,7 @@
         s.chorusStart ? h('p', { class: 'muted small' }, 'Wytnij Short od ' + s.chorusStart + ', maksymalnie 18 sekund.') : null,
         h('p', { class: 'flabel' }, 'Harmonogram'), h('ul', { class: 'sched' }, pack.schedule.map((x) => h('li', null, h('span', null, x.k), h('b', null, App.fmtDT(x.at))))),
         h('p', { class: 'flabel' }, 'Miniatura'), row(pack.thumb),
+        h('button', { class: 'btn big', onclick: () => App.studio.open(s.id) }, icon('film', 18), 'Studio teledysku'),
 
         h('h3', { class: 'sec' }, 'Checklista'),
         h('ul', { class: 'todo' }, E.checklist(p, s).map((c) => h('li', null, h('button', { class: 'cb' + ((s.checks || {})[c.id] ? ' on' : ''), role: 'checkbox', 'aria-checked': (s.checks || {})[c.id] ? 'true' : 'false', onclick: () => { s.checks = s.checks || {}; s.checks[c.id] = !s.checks[c.id]; save(); render(); } }, icon('check', 16), h('span', null, c.x))))),
@@ -385,6 +388,7 @@
     }, { onClose: () => { App.save(); UI.render(); } });
   }
   UI.openSong = openSong;
+  UI.kit = { openSheet, closeSheet, field, chip, copyBtn };
 
   /* ================= PLAN ================= */
   function renderPlan() {
@@ -469,6 +473,7 @@
       h('p', { class: 'muted' }, 'Klucze zostają w tej przeglądarce na tym urządzeniu. Nie trafiają do repozytorium ani na żaden serwer poza usługą, do której należą.'),
       field('Klucz Gemini (darmowy, aistudio.google.com)', h('input', { type: 'password', value: s.gemini, autocomplete: 'off', placeholder: 'AIza…', oninput: (e) => { s.gemini = e.target.value.trim(); App.save(); } })),
       field('Model Gemini', h('input', { value: s.model, oninput: (e) => { s.model = e.target.value.trim(); App.save(); } })),
+      field('Adres generatora obrazów (Cloudflare Worker)', h('input', { value: s.img || '', placeholder: 'https://…workers.dev/', oninput: (e) => { s.img = e.target.value.trim(); App.save(); } })),
       field('Klucz YouTube Data API (opcjonalny)', h('input', { type: 'password', value: s.yt, autocomplete: 'off', placeholder: 'AIza…', oninput: (e) => { s.yt = e.target.value.trim(); App.save(); } })),
       h('h3', { class: 'sec' }, 'Kopia zapasowa'),
       h('div', { class: 'row-btns' },

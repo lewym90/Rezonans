@@ -178,3 +178,7 @@ h3.sec { padding: 0; } #ideaOut h3.sec { padding: 0 20px; margin-top: 22px; } .s
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } #ambient i { animation: none !important; } }
 @media (min-width: 700px) { #view { padding-bottom: 130px; } h1 { font-size: 52px; } }
+
+.studio-cv { width: 100%; height: auto; display: block; border-radius: 16px; background: #000; box-shadow: inset 0 0 0 1px var(--line); }
+.thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.thumbs .thumb { width: 100%; height: auto; border-radius: 12px; display: block; }
