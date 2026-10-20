@@ -29,6 +29,7 @@
     if (!r.ok) {
       let m = r.status + '';
       try { const j = await r.json(); m = (j.error && j.error.message) || m; } catch (e) { /* ignore */ }
+      if (/prepayment|billing|credits are depleted/i.test(m)) throw new Error('Ten klucz Gemini należy do projektu z płatnymi rozliczeniami, a środki przedpłaty się skończyły. Utwórz darmowy klucz w projekcie bez rozliczeń: aistudio.google.com → Get API key → Create API key → projekt „Rezonans”. Wklej go w Ustawieniach.');
       const quota = r.status === 429 || /quota|exhausted|rate limit/i.test(m), gone = r.status === 404 || /no longer available|not found|not supported/i.test(m);
       if ((quota || gone) && tried.length < 6) {
         try { await AI.pickModel(tried); return AI.gemini(prompt, opts, tried); }
