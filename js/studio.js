@@ -152,6 +152,8 @@
   const isSame = (x, i) => x.same != null && x.same >= 0 && x.same < i;
   function planMap(plan) { const idx = []; let n = 0; plan.forEach((x, i) => { idx[i] = isSame(x, i) ? idx[x.same] : n++; }); return { idx, n }; }
   S.plan = (s, M, nLines) => (M.plan && M.plan.length ? M.plan : planFallback(s, nLines));
+  S.placeFlags = (s, M, nLines) => { const plan = S.plan(s, M, nLines), out = []; plan.forEach((x, i) => { if (!isSame(x, i)) out.push(!!x.place); }); return out; };
+  S.thumbFromPlan = (s, M, nLines) => { const plan = S.plan(s, M, nLines), pm = planMap(plan); return plan.thumb != null && pm.idx[plan.thumb] != null ? pm.idx[plan.thumb] : (M.plan && M.plan.thumb != null && pm.idx[M.plan.thumb] != null ? pm.idx[M.plan.thumb] : 0); };
   S.prompts = function (p, s, M, nLines) { const plan = S.plan(s, M, nLines), out = []; plan.forEach((x, i) => { if (!isSame(x, i)) out.push(x.prompt + '. ' + visual(p)); }); return out; };
 
   /* ---------- napisy ---------- */
@@ -201,18 +203,24 @@
     caps.forEach((c, i) => { const nx = caps[i + 1] ? caps[i + 1].t : dur; if (!(c.e > c.t) || c.e > nx) c.e = Math.min(nx, c.t + 5); if (c.e - c.t > 9) c.e = c.t + 9; });
     caps.fails = fails; return caps;
   };
-  /* refren z tekstu: pierwszy blok co najmniej 2 kolejnych linii, które wracają później (lub wcześniej) */
+  /* refren z tekstu: najdłuższy (do 6 linii) fragment, który wraca w tej samej kolejności; zaczyna się od pierwszej linii takiego bloku (z zapowiedzią przed refrenem) */
   S.chorusFromCaps = function (caps) {
     if (!caps || caps.length < 6) return null;
     const norm = (t) => t.toLowerCase().replace(/[^\p{L}\s]/gu, ' ').split(/\s+/).filter((w) => w.length > 2);
-    const toks = caps.map((c) => norm(c.text));
-    const sim = (x, y) => { if (!x.length || !y.length) return 0; const sy = new Set(y); let k = 0; x.forEach((w) => sy.has(w) && k++); return k / Math.max(x.length, y.length); };
-    const rep = caps.map((c, i) => toks.some((t, j) => Math.abs(j - i) >= 2 && sim(toks[i], t) >= 0.6));
-    for (let i = 0; i < caps.length - 1; i++) if (rep[i] && rep[i + 1]) {
-      let k = i; while (k + 1 < caps.length && rep[k + 1] && k - i < 7) k++;
-      return { start: Math.max(0, caps[i].t - 0.4), end: caps[k].e || caps[k].t + 4, first: i, last: k };
+    const toks = caps.map((c) => norm(c.text)), n = caps.length;
+    const sim = (i, j) => { const x = toks[i], y = toks[j]; if (!x.length || !y.length) return 0; const sy = new Set(y); let k = 0; x.forEach((w) => sy.has(w) && k++); return k / Math.max(x.length, y.length); };
+    const same = (i, j) => sim(i, j) >= 0.6;
+    let best = null;
+    for (let i = 0; i < n - 1; i++) for (let j = i + 2; j < n; j++) {
+      if (!same(i, j) || (i > 0 && same(i - 1, j - 1) && j - 1 > i - 1)) continue;
+      let k = 0; while (j + k < n && i + k < j && same(i + k, j + k)) k++;
+      if (k < 2) continue;
+      const len = Math.min(k, 6);
+      if (!best || len > best.len) best = { first: i, len, j };
     }
-    return null;
+    if (!best) return null;
+    const last = best.first + best.len - 1;
+    return { start: Math.max(0, caps[best.first].t - 0.4), end: caps[last].e || caps[last].t + 4, first: best.first, last };
   };
 
   /* ---------- rysowanie klatki ---------- */
@@ -284,16 +292,27 @@
     };
   };
 
-  S.thumb = async function (R) {
-    const c = document.createElement('canvas'); c.width = 1280; c.height = 720; const ctx = c.getContext('2d'), pal = R.p.palette, im = R.imgs[0];
-    ctx.fillStyle = pal.bg; ctx.fillRect(0, 0, 1280, 720);
-    const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height, sc = Math.max(1280 / iw, 720 / ih) * 1.05; ctx.drawImage(im, (1280 - iw * sc) / 2, (720 - ih * sc) / 2, iw * sc, ih * sc);
-    ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = pal.accent2 + '55'; ctx.fillRect(0, 0, 1280, 720); ctx.globalCompositeOperation = 'source-over';
-    const g = ctx.createLinearGradient(0, 200, 0, 720); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.8)'); ctx.fillStyle = g; ctx.fillRect(0, 0, 1280, 720);
-    const words = (R.thumbWords || R.title).toUpperCase().split(/\s+/).slice(0, 3).join(' ');
-    let px = 190; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    for (; px > 60; px -= 6) { ctx.font = '800 ' + px + 'px "Bricolage Grotesque", system-ui, sans-serif'; if (ctx.measureText(words).width < 1130) break; }
-    ctx.lineJoin = 'round'; ctx.lineWidth = px * 0.14; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.strokeText(words, 70, 650); ctx.fillStyle = pal.accent; ctx.fillText(words, 70, 650);
+  /* miniatura: 16:9 (1280×720) albo 9:16 (1080×1920) ze zdjęcia z wyraźną twarzą */
+  S.thumb = async function (R, vertical) {
+    const W = vertical ? 1080 : 1280, H = vertical ? 1920 : 720, c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d'), pal = R.p.palette, im = R.imgs[R.thumbIdx || 0] || R.imgs[0];
+    ctx.fillStyle = pal.bg; ctx.fillRect(0, 0, W, H);
+    const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height, sc = Math.max(W / iw, H / ih) * 1.04, dw = iw * sc, dh = ih * sc;
+    ctx.drawImage(im, (W - dw) / 2, -(dh - H) * (vertical ? 0.4 : 0.3), dw, dh);
+    ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = pal.accent2 + '55'; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over';
+    const g = ctx.createLinearGradient(0, H * (vertical ? 0.5 : 0.28), 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.82)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const words = (R.thumbWords || R.title).toUpperCase().split(/\s+/).filter(Boolean).slice(0, 3);
+    ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
+    const face = (px) => { ctx.font = '800 ' + px + 'px "Bricolage Grotesque", system-ui, sans-serif'; };
+    if (vertical) {
+      let px = 230; for (; px > 80; px -= 6) { face(px); if (Math.max(...words.map((w) => ctx.measureText(w).width)) < W - 150) break; }
+      ctx.textAlign = 'center'; ctx.lineWidth = px * 0.14; ctx.strokeStyle = 'rgba(0,0,0,.9)';
+      words.forEach((w, i) => { const y = H - 150 - (words.length - 1 - i) * px * 1.02; ctx.strokeText(w, W / 2, y); ctx.fillStyle = pal.accent; ctx.fillText(w, W / 2, y); });
+    } else {
+      const line = words.join(' '); let px = 190; ctx.textAlign = 'left';
+      for (; px > 60; px -= 6) { face(px); if (ctx.measureText(line).width < 1130) break; }
+      ctx.lineWidth = px * 0.14; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.strokeText(line, 70, 650); ctx.fillStyle = pal.accent; ctx.fillText(line, 70, 650);
+    }
     return new Promise((r) => c.toBlob(r, 'image/jpeg', 0.92));
   };
 
@@ -416,7 +435,27 @@
       return pm.idx[k];
     });
     const caps = M.exact ? M.caps : (M.approx !== false ? mapCaps : []);
-    return { p, an: M.an, imgs: M.imgs, cuts: M.cuts, caps, offset: M.offset, title: s.title || '', buf: M.buf, thumbWords: s.thumbWords };
+    return { p, an: M.an, imgs: M.imgs, cuts: M.cuts, caps, offset: M.offset, title: s.title || '', buf: M.buf, thumbWords: s.thumbWords, thumbIdx: M.thumbIdx || 0 };
+  };
+  const small = (im) => { const c = document.createElement('canvas'), w = im.naturalWidth || im.width, h = im.naturalHeight || im.height, k = 384 / Math.max(w, h); c.width = Math.round(w * k); c.height = Math.round(h * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.72).split(',')[1]; };
+  /* kontrola: żadnych samych dłoni czy butów, bez człowieka z twarzą; miniatura z najlepszego kadru */
+  S.vetAll = async function (p, s, M, list, flags, say, notes) {
+    const imgs = M.imgs, FIX = ' The man is clearly visible with his face and upper body in a medium shot. Not a close-up of hands, feet or objects alone.';
+    const bad = (v, i) => v && (v.fragment || (!v.person && !flags[i]));
+    let res = await App.ai.vetImages(imgs.map(small)), tries = 0;
+    while (tries < 2) {
+      const redo = []; imgs.forEach((im, i) => { if (bad(res[i], i)) redo.push(i); }); if (!redo.length) break;
+      tries++; const fresh = [];
+      for (let k = 0; k < redo.length; k++) { say('Poprawiam kadr bez twarzy (' + (k + 1) + '/' + redo.length + ')…'); try { fresh.push(await S.genImage(list[redo[k]] + FIX)); } catch (e) { fresh.push(null); } }
+      const ok = redo.filter((i, k) => fresh[k]); if (!ok.length) break;
+      const v2 = await App.ai.vetImages(redo.map((i, k) => fresh[k]).filter(Boolean).map(small));
+      ok.forEach((i, n) => { imgs[i] = fresh[redo.indexOf(i)]; res[i] = v2[n]; });
+    }
+    const good = []; imgs.forEach((im, i) => { if (res[i] && !bad(res[i], i) && res[i].face) good.push(i); });
+    let fixed = 0; imgs.forEach((im, i) => { if (bad(res[i], i) && good.length) { imgs[i] = imgs[good[i % good.length]]; fixed++; } });
+    if (fixed) notes.push(fixed + ' kadrów bez twarzy zastąpiłem kadrem z bohaterem.');
+    let bi = -1, bs = -1; imgs.forEach((im, i) => { const v = res[i]; if (v && v.face && !v.fragment && v.thumb > bs) { bs = v.thumb; bi = i; } });
+    return bi;
   };
   /* jedno kliknięcie: napisy ze słuchu, sceny z tekstu, obrazy, refren */
   S.autoPrepare = async function (id, say) {
@@ -431,6 +470,8 @@
     for (let i = 0; i < list.length; i++) { say('Generuję obraz ' + (i + 1) + ' z ' + list.length + '…'); try { res.push(await S.genImage(list[i])); } catch (e) { fails++; res.push(procArt(p, i + 3)); } }
     M.imgs = res; M.cuts = null; M.generated = fails < list.length;
     if (fails) notes.push(fails + ' obrazów zastąpiłem kafelkami.');
+    M.thumbIdx = S.thumbFromPlan(s, M, lines.length);
+    if (key && M.generated && App.ai.peopleOK(p)) { try { say('Gemini sprawdza obrazy (twarze, kadry bez człowieka)…'); const bi = await S.vetAll(p, s, M, list, S.placeFlags(s, M, lines.length), say, notes); if (bi >= 0) M.thumbIdx = bi; } catch (e) { notes.push('Kontrola obrazów nie powiodła się: ' + e.message); } }
     if (M.exact) { M.chorusText = S.chorusFromCaps(M.caps); if (M.chorusText && s.chorusAuto !== false) { s.chorusStart = mmss(M.chorusText.start); s.chorusAuto = true; } }
     App.save(); M.notes = notes; return notes;
   };
@@ -440,13 +481,17 @@
     try { await S.autoPrepare(id, say); M.prepared = true; } catch (e) { M.notes = [e.message || 'Błąd przygotowania']; }
     M.running = false; M.status = ''; render();
   };
-  /* okno Shorta: od początku refrenu, do końca linii, ok. 24 s */
+  /* okno Shorta: od zapowiedzi refrenu, przez refren, do końca linii; 16 do 30 s */
   S.shortWindow = function (id) {
-    const s = App.song(id), M = S.mem(id), dur = M.an.dur, cs = parseT(s.chorusStart);
-    let start = M.chorusText && s.chorusAuto !== false ? M.chorusText.start : (cs !== null && cs < dur - 8 ? cs : M.an.chorus.start);
+    const s = App.song(id), M = S.mem(id), dur = M.an.dur, cs = parseT(s.chorusStart), auto = s.chorusAuto !== false, txt = auto ? M.chorusText : null;
+    let start = txt ? txt.start : (cs !== null && cs < dur - 8 ? cs : M.an.chorus.start);
     start = Math.max(0, Math.min(start, dur - 10));
-    let end = start + 24; if (M.chorusText && s.chorusAuto !== false) end = Math.max(end - 4, Math.min(start + 30, M.chorusText.end + 1));
-    if (M.exact && M.caps) { const c = M.caps.find((x) => x.t <= end && (x.e || x.t + 4) > end); if (c) end = (c.e || c.t + 4) + 0.6 <= start + 32 ? (c.e || c.t + 4) + 0.6 : c.t - 0.15; }
+    let end = txt ? txt.end + 0.8 : start + 22;
+    if (end - start < 16) end = start + 16; if (end - start > 30) end = start + 30;
+    if (M.exact && M.caps) {
+      const c = M.caps.find((x) => x.t < end && (x.e || x.t + 4) > end);
+      if (c) { const ce = (c.e || c.t + 4) + 0.6; end = ce - start <= 32 ? ce : c.t - 0.15; }
+    }
     return { start, len: Math.max(12, Math.min(end, dur) - start) };
   };
   S.renderVideo = async function (id, short, onProgress, cv) {
@@ -511,11 +556,12 @@
           h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: () => S.runPrepare(songId, render) }, icon('spark', 18), M.prepared ? 'Przygotuj od nowa (napisy, sceny, obrazy)' : 'Przygotuj teledysk automatycznie'),
             h('button', { class: 'btn ghost', onclick: guard(async () => { const R = S.mk(songId); setBar(0); await S.play(R, cv, { start: S.shortWindow(songId).start, len: 15, record: false, onProgress: setBar }); showStill(); }) }, icon('refresh', 18), 'Podgląd 15 s z dźwiękiem')),
           bar,
-          M.imgs.length ? h('div', { class: 'thumbs' }, M.imgs.map((im) => { const c = document.createElement('canvas'); c.width = 160; c.height = 160; const w = im.naturalWidth || im.width, hh = im.naturalHeight || im.height; c.getContext('2d').drawImage(im, 0, 0, w, hh, 0, 0, 160, 160); c.className = 'thumb'; return c; })) : null,
+          M.imgs.length ? h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Obrazy w teledysku. Dotknij, żeby wybrać kadr na miniaturę (zaznaczony):'), h('div', { class: 'thumbs' }, M.imgs.map((im, i) => { const c = document.createElement('canvas'); c.width = 160; c.height = 160; const w = im.naturalWidth || im.width, hh = im.naturalHeight || im.height; c.getContext('2d').drawImage(im, 0, 0, w, hh, 0, 0, 160, 160); c.className = 'thumb' + ((M.thumbIdx || 0) === i ? ' sel' : ''); c.onclick = () => { M.thumbIdx = i; render(); }; return c; }))) : null,
           h('label', { class: 'field' }, h('span', { class: 'flabel' }, 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'), h('input', { type: 'range', min: -4, max: 4, step: 0.1, value: M.offset, oninput: (e) => { M.offset = +e.target.value; e.target.previousSibling.textContent = 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'; } })),
           h('button', { class: 'btn big', onclick: renderTo(false) }, icon('play', 18), 'Zrenderuj film 16:9 (' + mmss(M.an.dur) + ')'),
           h('button', { class: 'btn big ghost', onclick: renderTo(true) }, icon('play', 18), 'Zrenderuj Short 9:16 z refrenem'),
           h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(S.mk(songId)); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '.jpg'); }) }, icon('copy', 18), 'Miniatura 1280×720'),
+          h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(S.mk(songId), true); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '_short_9x16.jpg'); }) }, icon('copy', 18), 'Miniatura Shorta 9:16 (1080×1920)'),
           out) : null);
     }
   };

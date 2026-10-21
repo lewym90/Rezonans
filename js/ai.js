@@ -71,19 +71,32 @@
     return (Array.isArray(arr) ? arr : [arr]).slice(0, 3).map((x) => Object.assign({ id: App.uid('idea'), branch: (p.styleVariants[0] || {}).id }, x));
   };
 
+  AI.peopleOK = (p) => !/no people/i.test(p.visual || '');
   /* plan kadrów pod treść: każdy kadr ilustruje konkretny fragment tekstu; powrót refrenu = ten sam kadr */
   AI.shots = async function (p, song, lines) {
+    const ppl = AI.peopleOK(p);
     const prompt = ['Jesteś reżyserem teledysku. Piosenka „' + song.title + '” (kanał ' + p.name + '). Styl wizualny kanału: ' + (p.visual || p.dna.genre) + '.',
       'Linie tekstu w kolejności śpiewania (numer: linia):\n' + lines.slice(0, 90).map((l, i) => i + ': ' + l).join('\n'),
       'Zaplanuj 12 kadrów po ANGIELSKU dla generatora obrazów, po jednym na kolejny fragment tekstu. Dla każdego podaj "from" (numer pierwszej linii, którą kadr ilustruje; rosnąco, pierwszy kadr ma from 0) i "prompt".',
-      'Zasady: kadr pokazuje KONKRETNY obraz z tych linii (miejsce, przedmiot, gest, pora dnia, ludzie z wyglądu), a nie ogólny nastrój. Różne plany: szeroki, zbliżenie, detal, sylwetka, z dołu. Jeden bohater zawsze wygląda tak samo: opisz go raz w polu "hero" i wpisuj ten opis w prompty kadrów, w których występuje. Refren, gdy wraca, ma ten sam kadr: zamiast "prompt" podaj "same_as" (numer wcześniejszego kadru, liczony od 0). Bez napisów, liter, logo, znaków wodnych.',
-      'Zwróć JSON: {"hero":"...","shots":[{"from":0,"prompt":"..."},{"from":9,"same_as":2}]}'].join('\n');
+      'Zasady: kadr pokazuje KONKRETNY obraz z tych linii (miejsce, przedmiot, gest, pora dnia), a nie ogólny nastrój. Różne plany. Bez napisów, liter, logo, znaków wodnych. Refren, gdy wraca, ma ten sam kadr: zamiast "prompt" podaj "same_as" (numer wcześniejszego kadru, liczony od 0).',
+      ppl ? 'ZASADA NAJWAŻNIEJSZA: w KAŻDYM kadrze widać człowieka-bohatera z wyraźną twarzą albo co najmniej górną połową sylwetki (np. "medium shot of the man, face clearly visible, ..."). ZAKAZANE są kadry samej dłoni, stopy, buta, przedmiotu lub fragmentu ciała bez twarzy; detal wolno pokazać tylko w kadrze, w którym widać też twarz. Jedyny wyjątek: do 2 szerokich kadrów miejsca bez człowieka (np. dźwig w mgle), oznacz je "place": true. Bohater zawsze wygląda tak samo: opisz go raz w "hero" i wpisuj ten opis w każdy kadr z człowiekiem.' : 'W kadrach nie ma ludzi: pokaż miejsca i przedmioty w jednym spójnym świecie.',
+      'Dodatkowo wskaż w "thumb" numer kadru (od 0) najlepszego na miniaturę YouTube: wyraźna twarz bohatera, emocja, czytelna kompozycja z miejscem na tytuł (nigdy kadr bez twarzy).',
+      'Zwróć JSON: {"hero":"...","thumb":0,"shots":[{"from":0,"prompt":"..."},{"from":5,"prompt":"...","place":true},{"from":9,"same_as":2}]}'].join('\n');
     const o = JSON.parse(await AI.gemini(prompt, { json: true, temp: 0.8 }));
-    const arr = (o.shots || o || []).filter((x) => x && isFinite(Number(x.from))).map((x) => ({ from: Math.max(0, Math.round(Number(x.from))), prompt: x.prompt ? String(x.prompt) : '', same: x.same_as != null && isFinite(Number(x.same_as)) ? Math.round(Number(x.same_as)) : null }));
+    const arr = (o.shots || o || []).filter((x) => x && isFinite(Number(x.from))).map((x) => ({ from: Math.max(0, Math.round(Number(x.from))), prompt: x.prompt ? String(x.prompt) : '', same: x.same_as != null && isFinite(Number(x.same_as)) ? Math.round(Number(x.same_as)) : null, place: !!x.place }));
     arr.sort((x, y) => x.from - y.from);
     const out = arr.slice(0, 16).filter((x, i) => x.prompt || (x.same != null && x.same < i));
     if (out.length < 4) throw new Error('Gemini zwrócił za mało kadrów.');
-    out[0].from = 0;
+    out[0].from = 0; out.thumb = Number.isFinite(Number(o.thumb)) ? Math.round(Number(o.thumb)) : null; out.hero = String(o.hero || '');
+    return out;
+  };
+
+  /* kontrola obrazów: Gemini ogląda każdy obraz (twarz, sam fragment ciała, nadaje się na miniaturę) */
+  AI.vetImages = async function (smalls) {
+    const parts = []; smalls.forEach((d, i) => { parts.push({ text: 'Obraz ' + i + ':' }); parts.push({ inline_data: { mime_type: 'image/jpeg', data: d } }); });
+    const prompt = 'Oceń każdy z ' + smalls.length + ' obrazów do teledysku. Dla każdego zwróć: "face" (czy wyraźnie widać twarz człowieka), "person" (czy widać człowieka: twarz lub górną część sylwetki), "fragment" (true, gdy widać tylko fragment ciała, np. samą dłoń, stopę lub but, bez twarzy i tułowia), "thumb" (0-10: jak dobra jest miniatura YouTube: wyraźna twarz, emocja, czytelna kompozycja). Zwróć tylko JSON: [{"i":0,"face":true,"person":true,"fragment":false,"thumb":8}].';
+    let arr = JSON.parse(await AI.gemini(prompt, { json: true, temp: 0.1, parts })); if (!Array.isArray(arr)) arr = arr.images || [];
+    const out = []; arr.forEach((x) => { const i = Number(x.i); if (i >= 0 && i < smalls.length) out[i] = { face: !!x.face, person: !!x.person, fragment: !!x.fragment, thumb: Number(x.thumb) || 0 }; });
     return out;
   };
 

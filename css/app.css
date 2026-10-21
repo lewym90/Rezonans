@@ -205,3 +205,6 @@ h3.sec { padding: 0; } #ideaOut h3.sec { padding: 0 20px; margin-top: 22px; } .s
 .wz textarea[readonly] { opacity: .95; }
 
 input.secret{-webkit-text-security:disc;text-security:disc}
+
+.thumbs .thumb.sel{outline:3px solid var(--accent,#e6b450);outline-offset:-3px}
+.thumbs .thumb{cursor:pointer}
