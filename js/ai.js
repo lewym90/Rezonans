@@ -30,6 +30,13 @@
       let m = r.status + '';
       try { const j = await r.json(); m = (j.error && j.error.message) || m; } catch (e) { /* ignore */ }
       if (/prepayment|billing|credits are depleted/i.test(m)) throw new Error('Ten klucz Gemini należy do projektu z płatnymi rozliczeniami, a środki przedpłaty się skończyły. Utwórz darmowy klucz w projekcie bez rozliczeń: aistudio.google.com → Get API key → Create API key → projekt „Rezonans”. Wklej go w Ustawieniach.');
+      const busy = [500, 502, 503, 504].includes(r.status) || /high demand|overloaded|unavailable|try again later/i.test(m);
+      if (busy) {
+        const n = (opts && opts._n) || 0;
+        if (n < 3) { await new Promise((z) => setTimeout(z, [2500, 6000, 12000][n])); tried.pop(); return AI.gemini(prompt, Object.assign({}, opts, { _n: n + 1 }), tried); }
+        if (tried.length < 6) { try { await AI.pickModel(tried); return AI.gemini(prompt, Object.assign({}, opts, { _n: 0 }), tried); } catch (e) { /* zgłoś poniżej */ } }
+        throw new Error('Serwery Gemini są chwilowo przeciążone. Odczekaj minutę i kliknij „Przygotuj od nowa”.');
+      }
       const quota = r.status === 429 || /quota|exhausted|rate limit/i.test(m), gone = r.status === 404 || /no longer available|not found|not supported/i.test(m);
       if ((quota || gone) && tried.length < 6) {
         try { await AI.pickModel(tried); return AI.gemini(prompt, opts, tried); }

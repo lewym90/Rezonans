@@ -476,7 +476,7 @@
     App.save(); M.notes = notes; return notes;
   };
   S.runPrepare = async function (id, render) {
-    const M = S.mem(id); if (M.running) return; M.running = true;
+    const M = S.mem(id); if (M.running) return; M.running = true; M.notes = [];
     const say = (m) => { M.status = m; render(); };
     try { await S.autoPrepare(id, say); M.prepared = true; } catch (e) { M.notes = [e.message || 'Błąd przygotowania']; }
     M.running = false; M.status = ''; render();
