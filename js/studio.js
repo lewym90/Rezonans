@@ -460,18 +460,18 @@
   /* jedno kliknięcie: napisy ze słuchu, sceny z tekstu, obrazy, refren */
   S.autoPrepare = async function (id, say) {
     const s = App.song(id), p = App.profile(s.profileId), M = S.mem(id), key = App.ai.hasKey(), notes = [];
-    let lines = S.lines(s.lyrics); M.exact = false; M.caps = null; M.plan = null; M.chorusText = null; M.align = lines.length ? 'przybliżone' : 'brak tekstu';
+    let keyDead = false, lines = S.lines(s.lyrics); M.exact = false; M.caps = null; M.plan = null; M.chorusText = null; M.align = lines.length ? 'przybliżone' : 'brak tekstu';
     if (key) {
       try { say('Gemini słucha utworu i spisuje napisy…'); M.caps = await S.aiCaps(M.buf, M.an, lines, say); M.exact = true; if (M.caps.fails && M.caps.fails.length) notes.push('Część nagrania nie została spisana (' + M.caps.fails.length + ' z ' + S.chunks(M.an).length + ' kawałków). Kliknij „Przygotuj teledysk automatycznie”, żeby spróbować ponownie.'); M.align = 'ze słuchu (Gemini)'; lines = M.caps.map((c) => c.text); }
-      catch (e) { M.caps = null; notes.push('Napisy: ' + e.message + ' Pokazuję napisy przybliżone. Kliknij „Przygotuj teledysk automatycznie”, żeby spróbować ponownie.'); }
-      if (lines.length) { try { say('Gemini układa sceny pod treść tekstu…'); M.plan = await App.ai.shots(p, s, lines); } catch (e) { M.plan = null; notes.push('Sceny z tekstu: ' + e.message); } }
+      catch (e) { M.caps = null; keyDead = /^(Ten klucz|Darmowy limit|Brak klucza)/.test(e.message); notes.push(keyDead ? e.message + ' Do czasu naprawy klucza pokazuję napisy przybliżone, a sceny i obrazy powstają bez kontroli Gemini.' : 'Napisy: ' + e.message + ' Pokazuję napisy przybliżone. Kliknij „Przygotuj od nowa”, żeby spróbować ponownie.'); }
+      if (lines.length && !keyDead) { try { say('Gemini układa sceny pod treść tekstu…'); M.plan = await App.ai.shots(p, s, lines); } catch (e) { M.plan = null; notes.push('Sceny z tekstu: ' + e.message); } }
     } else notes.push('Brak klucza Gemini: napisy i sceny nie będą dopasowane do nagrania (Ustawienia → Klucz Gemini).');
     const list = S.prompts(p, s, M, lines.length), res = []; let fails = 0;
     for (let i = 0; i < list.length; i++) { say('Generuję obraz ' + (i + 1) + ' z ' + list.length + '…'); try { res.push(await S.genImage(list[i])); } catch (e) { fails++; res.push(procArt(p, i + 3)); } }
     M.imgs = res; M.cuts = null; M.generated = fails < list.length;
     if (fails) notes.push(fails + ' obrazów zastąpiłem kafelkami.');
     M.thumbIdx = S.thumbFromPlan(s, M, lines.length);
-    if (key && M.generated && App.ai.peopleOK(p)) { try { say('Gemini sprawdza obrazy (twarze, kadry bez człowieka)…'); const bi = await S.vetAll(p, s, M, list, S.placeFlags(s, M, lines.length), say, notes); if (bi >= 0) M.thumbIdx = bi; } catch (e) { notes.push('Kontrola obrazów nie powiodła się: ' + e.message); } }
+    if (key && !keyDead && M.generated && App.ai.peopleOK(p)) { try { say('Gemini sprawdza obrazy (twarze, kadry bez człowieka)…'); const bi = await S.vetAll(p, s, M, list, S.placeFlags(s, M, lines.length), say, notes); if (bi >= 0) M.thumbIdx = bi; } catch (e) { notes.push('Kontrola obrazów nie powiodła się: ' + e.message); } }
     if (M.exact) { M.chorusText = S.chorusFromCaps(M.caps); if (M.chorusText && s.chorusAuto !== false) { s.chorusStart = mmss(M.chorusText.start); s.chorusAuto = true; } }
     App.save(); M.notes = notes; return notes;
   };
