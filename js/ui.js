@@ -522,6 +522,8 @@
       field('Adres generatora obrazów (Cloudflare Worker)', h('input', { value: s.img || '', placeholder: 'https://…workers.dev/', oninput: (e) => { s.img = e.target.value.trim(); App.save(); } })),
       field('Google OAuth Client ID (wysyłka na YouTube)', h('input', { value: s.ytClient || '', placeholder: '…apps.googleusercontent.com', oninput: (e) => { s.ytClient = e.target.value.trim(); App.save(); } })),
       field('Klucz YouTube Data API (opcjonalny)', h('input', { type: 'text', class: 'secret', name: 'rz-yt', value: s.yt, autocomplete: 'off', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', 'data-lpignore': 'true', placeholder: 'AIza…', oninput: (e) => { s.yt = e.target.value.trim(); App.save(); } })),
+      h('h3', { class: 'sec' }, 'Ekran'),
+      h('label', { class: 'field', style: { flexDirection: 'row', alignItems: 'center', gap: '12px' } }, h('input', { type: 'checkbox', checked: s.awake !== false, onchange: (e) => { s.awake = e.target.checked; App.save(); if (App.awake) App.awake.refresh(); } }), h('span', null, 'Nie wygaszaj ekranu i nie blokuj telefonu, gdy aplikacja jest otwarta (zużywa więcej baterii)')),
       h('h3', { class: 'sec' }, 'Wersja aplikacji'),
       h('p', { class: 'muted small' }, 'Wersja ' + App.version + '. Jeśli po aktualizacji widzisz stare zachowanie, odśwież do najnowszej wersji. Twoje dane zostają.'),
       h('button', { class: 'btn ghost', onclick: async () => { try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map((r) => r.unregister())); const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } catch (e) { /* ignore */ } location.reload(); } }, icon('refresh', 18), 'Odśwież do najnowszej wersji'),
