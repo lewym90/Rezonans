@@ -330,7 +330,7 @@
       const types = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
       const mt = types.find((x) => window.MediaRecorder && MediaRecorder.isTypeSupported(x));
       if (!mt) throw new Error('Ta przeglądarka nie potrafi nagrywać wideo. Użyj Safari na iPhonie lub Chrome.');
-      rec = new MediaRecorder(stream, { mimeType: mt, videoBitsPerSecond: 7e6, audioBitsPerSecond: 192000 }); rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      rec = new MediaRecorder(stream, { mimeType: mt, videoBitsPerSecond: opt.short ? 3.5e6 : 4.5e6, audioBitsPerSecond: 160000 }); rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       rec.mt = mt;
     } else an.connect(ctx.destination);
     let wl = null; try { wl = await navigator.wakeLock.request('screen'); } catch (e) { /* ignore */ }
@@ -353,12 +353,15 @@
     try { ctx.close(); } catch (e) { /* ignore */ } if (wl) { try { wl.release(); } catch (e) { /* ignore */ } }
     return blob;
   };
-  S.save = async function (blob, name) {
-    const file = new File([blob], name, { type: blob.type });
-    try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  /* mode 'share': arkusz udostępniania iOS (tam jest „Zapisz wideo” do galerii), 'file': pobranie do aplikacji Pliki */
+  S.save = async function (blob, name, mode) {
+    const file = new File([blob], name, { type: blob.type || 'video/mp4' });
+    if (mode !== 'file') {
+      if (!(navigator.canShare && navigator.canShare({ files: [file] }))) throw new Error('Ten telefon nie pozwala udostępnić tak dużego pliku z aplikacji. Użyj „Wyślij na YouTube” albo „Zapisz w Plikach”.');
+      try { await navigator.share({ files: [file] }); return; } catch (e) { if (e && e.name === 'AbortError') return; throw new Error('Udostępnianie nie powiodło się (' + (e && e.name) + '). Użyj „Wyślij na YouTube” albo „Zapisz w Plikach”.'); }
+    }
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 500);
   };
-
 
   /* ---------- wysyłka na YouTube (prywatny film) ---------- */
   const YT = (S.yt = { token: null, exp: 0 });
@@ -539,7 +542,8 @@
         const r = await S.renderVideo(songId, short, setBar); const url = URL.createObjectURL(r.blob);
         out.textContent = '';
         out.appendChild(h('video', { src: url, controls: true, playsinline: true, class: 'studio-cv', style: { aspectRatio: r.W + '/' + r.H, maxHeight: '60vh' } }));
-        out.appendChild(h('button', { class: 'btn big', onclick: () => S.save(r.blob, r.name) }, icon('copy', 18), 'Zapisz plik (' + Math.round(r.blob.size / 1e6) + ' MB)'));
+        out.appendChild(h('button', { class: 'btn big', onclick: () => S.save(r.blob, r.name, 'share').catch((er) => toast(er.message)) }, icon('copy', 18), 'Do galerii: Udostępnij → Zapisz wideo (' + Math.round(r.blob.size / 1e6) + ' MB)'));
+        out.appendChild(h('button', { class: 'btn big ghost', onclick: () => S.save(r.blob, r.name, 'file') }, icon('copy', 18), 'Zapisz w Plikach'));
         out.appendChild(h('button', { class: 'btn big ghost', onclick: guard(async () => { toast('Zaloguj się i wybierz kanał: ' + p.name); const x = await S.sendPrivate(songId, r.blob, short, setBar); out.appendChild(h('p', { class: 'hint' }, 'Wysłano jako prywatny na kanał „' + x.channel + '”.' + (x.thumbErr ? ' ' + x.thumbErr : ''))); out.appendChild(h('a', { class: 'btn big', href: 'https://studio.youtube.com/video/' + x.id + '/edit', target: '_blank', rel: 'noopener' }, 'Otwórz w YouTube Studio')); }) }, icon('upload', 18), 'Wyślij na YouTube jako prywatny'));
         toast('Gotowe');
       });
@@ -562,8 +566,8 @@
           h('label', { class: 'field' }, h('span', { class: 'flabel' }, 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'), h('input', { type: 'range', min: -4, max: 4, step: 0.1, value: M.offset, oninput: (e) => { M.offset = +e.target.value; e.target.previousSibling.textContent = 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'; } })),
           h('button', { class: 'btn big', onclick: renderTo(false) }, icon('play', 18), 'Zrenderuj film 16:9 (' + mmss(M.an.dur) + ')'),
           h('button', { class: 'btn big ghost', onclick: renderTo(true) }, icon('play', 18), 'Zrenderuj Short 9:16 z refrenem'),
-          h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(S.mk(songId)); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '.jpg'); }) }, icon('copy', 18), 'Miniatura 1280×720'),
-          h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(S.mk(songId), true); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '_short_9x16.jpg'); }) }, icon('copy', 18), 'Miniatura Shorta 9:16 (1080×1920)'),
+          h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(S.mk(songId)); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '.jpg', 'share').catch(() => S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '.jpg', 'file')); }) }, icon('copy', 18), 'Miniatura 1280×720'),
+          h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(S.mk(songId), true); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '_short_9x16.jpg', 'share').catch(() => S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '_short_9x16.jpg', 'file')); }) }, icon('copy', 18), 'Miniatura Shorta 9:16 (1080×1920)'),
           out) : null);
     }
   };
