@@ -29,7 +29,7 @@
     if (!r.ok) {
       let m = r.status + '';
       try { const j = await r.json(); m = (j.error && j.error.message) || m; } catch (e) { /* ignore */ }
-      if (/prepayment|billing|credits are depleted/i.test(m)) throw new Error('Ten klucz Gemini należy do projektu z płatnymi rozliczeniami, a środki przedpłaty się skończyły. Utwórz darmowy klucz w projekcie bez rozliczeń: aistudio.google.com → Get API key → Create API key → projekt „Rezonans”. Wklej go w Ustawieniach.');
+      if (/prepayment|credits are depleted/i.test(m)) throw new Error('Ten klucz Gemini należy do projektu z płatnymi rozliczeniami, a środki przedpłaty się skończyły. Utwórz darmowy klucz w projekcie bez rozliczeń: aistudio.google.com → Get API key → Create API key → projekt „Rezonans”. Wklej go w Ustawieniach. (Komunikat Google: „' + m.slice(0, 120) + '”)');
       const busy = [500, 502, 503, 504].includes(r.status) || /high demand|overloaded|unavailable|try again later/i.test(m);
       if (busy) {
         const n = (opts && opts._n) || 0;
@@ -38,9 +38,13 @@
         throw new Error('Serwery Gemini są chwilowo przeciążone. Odczekaj minutę i kliknij „Przygotuj od nowa”.');
       }
       const quota = r.status === 429 || /quota|exhausted|rate limit/i.test(m), gone = r.status === 404 || /no longer available|not found|not supported/i.test(m);
+      if (quota && !(opts && opts._q)) {
+        const mm = /retry(?:Delay)?\D{0,12}(\d+(?:\.\d+)?)\s*s/i.exec(m), wait = mm ? Math.ceil(parseFloat(mm[1])) : 20;
+        if (wait <= 60) { await new Promise((z) => setTimeout(z, (wait + 1) * 1000)); tried.pop(); return AI.gemini(prompt, Object.assign({}, opts, { _q: 1 }), tried); }
+      }
       if ((quota || gone) && tried.length < 6) {
         try { await AI.pickModel(tried); return AI.gemini(prompt, opts, tried); }
-        catch (e) { if (quota) throw new Error('Darmowy limit Gemini jest na dziś wyczerpany dla wszystkich dostępnych modeli. Odnawia się codziennie (ok. 9:00 czasu polskiego). Do tego czasu użyj „Kopiuj prompt do czatu AI”, wklej tekst z czatu i zapisz utwór.'); throw e; }
+        catch (e) { if (quota) throw new Error('Darmowy limit Gemini jest wyczerpany dla dostępnych modeli (komunikat Google: „' + m.slice(0, 140) + '”). Limit odnawia się codziennie (ok. 9:00 czasu polskiego), minutowy po chwili. Odnawia się codziennie (ok. 9:00 czasu polskiego). Do tego czasu użyj „Kopiuj prompt do czatu AI”, wklej tekst z czatu i zapisz utwór.'); throw e; }
       }
       throw new Error('Gemini: ' + m);
     }
@@ -101,9 +105,9 @@
   /* kontrola obrazów: Gemini ogląda każdy obraz (twarz, sam fragment ciała, nadaje się na miniaturę) */
   AI.vetImages = async function (smalls) {
     const parts = []; smalls.forEach((d, i) => { parts.push({ text: 'Obraz ' + i + ':' }); parts.push({ inline_data: { mime_type: 'image/jpeg', data: d } }); });
-    const prompt = 'Oceń każdy z ' + smalls.length + ' obrazów do teledysku. Dla każdego zwróć: "face" (czy wyraźnie widać twarz człowieka), "person" (czy widać człowieka: twarz lub górną część sylwetki), "fragment" (true, gdy widać tylko fragment ciała, np. samą dłoń, stopę lub but, bez twarzy i tułowia), "thumb" (0-10: jak dobra jest miniatura YouTube: wyraźna twarz, emocja, czytelna kompozycja). Zwróć tylko JSON: [{"i":0,"face":true,"person":true,"fragment":false,"thumb":8}].';
+    const prompt = 'Oceń każdy z ' + smalls.length + ' obrazów do teledysku. Dla każdego zwróć: "face" (czy wyraźnie widać twarz człowieka), "person" (czy widać człowieka: twarz lub górną część sylwetki), "fragment" (true, gdy widać tylko fragment ciała, np. samą dłoń, stopę lub but, bez twarzy i tułowia), "broken" (true, gdy anatomia jest zepsuta: głowa bez ciała, unosząca się głowa, zniekształcona lub podwójna twarz, dodatkowe lub zlane kończyny), "thumb" (0-10: jak dobra jest miniatura YouTube: wyraźna twarz, emocja, czytelna kompozycja). Zwróć tylko JSON: [{"i":0,"face":true,"person":true,"fragment":false,"broken":false,"thumb":8}].';
     let arr = JSON.parse(await AI.gemini(prompt, { json: true, temp: 0.1, parts })); if (!Array.isArray(arr)) arr = arr.images || [];
-    const out = []; arr.forEach((x) => { const i = Number(x.i); if (i >= 0 && i < smalls.length) out[i] = { face: !!x.face, person: !!x.person, fragment: !!x.fragment, thumb: Number(x.thumb) || 0 }; });
+    const out = []; arr.forEach((x) => { const i = Number(x.i); if (i >= 0 && i < smalls.length) out[i] = { face: !!x.face, person: !!x.person, fragment: !!x.fragment, broken: !!x.broken, thumb: Number(x.thumb) || 0 }; });
     return out;
   };
 

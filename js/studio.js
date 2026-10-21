@@ -145,7 +145,7 @@
   }
   /* plan kadrów: każdy kadr ilustruje fragment tekstu (from = numer pierwszej linii) */
   function planFallback(s, nLines) {
-    const base = (s.scenes || []).filter(Boolean), extra = ['wide establishing shot', 'extreme close-up detail', 'silhouette against the light', 'low angle dramatic shot'], n = 8, out = [];
+    const base = (s.scenes || []).filter(Boolean), extra = ['wide establishing shot of the place', 'medium shot of the man, face clearly visible', 'low angle shot of the man, full figure', 'silhouette of the man against the light'], n = 8, out = [];
     for (let i = 0; i < n; i++) out.push({ from: Math.floor(i * Math.max(1, nLines) / n), prompt: (base[i % Math.max(1, base.length)] || s.title || 'cinematic scene') + ', ' + extra[Math.floor(i / Math.max(1, base.length)) % extra.length] });
     return out;
   }
@@ -441,7 +441,7 @@
   /* kontrola: żadnych samych dłoni czy butów, bez człowieka z twarzą; miniatura z najlepszego kadru */
   S.vetAll = async function (p, s, M, list, flags, say, notes) {
     const imgs = M.imgs, FIX = ' The man is clearly visible with his face and upper body in a medium shot. Not a close-up of hands, feet or objects alone.';
-    const bad = (v, i) => v && (v.fragment || (!v.person && !flags[i]));
+    const bad = (v, i) => v && (v.fragment || v.broken || (!v.person && !flags[i]));
     let res = await App.ai.vetImages(imgs.map(small)), tries = 0;
     while (tries < 2) {
       const redo = []; imgs.forEach((im, i) => { if (bad(res[i], i)) redo.push(i); }); if (!redo.length) break;
@@ -454,7 +454,7 @@
     const good = []; imgs.forEach((im, i) => { if (res[i] && !bad(res[i], i) && res[i].face) good.push(i); });
     let fixed = 0; imgs.forEach((im, i) => { if (bad(res[i], i) && good.length) { imgs[i] = imgs[good[i % good.length]]; fixed++; } });
     if (fixed) notes.push(fixed + ' kadrów bez twarzy zastąpiłem kadrem z bohaterem.');
-    let bi = -1, bs = -1; imgs.forEach((im, i) => { const v = res[i]; if (v && v.face && !v.fragment && v.thumb > bs) { bs = v.thumb; bi = i; } });
+    let bi = -1, bs = -1; imgs.forEach((im, i) => { const v = res[i]; if (v && v.face && !v.fragment && !v.broken && v.thumb > bs) { bs = v.thumb; bi = i; } });
     return bi;
   };
   /* jedno kliknięcie: napisy ze słuchu, sceny z tekstu, obrazy, refren */
