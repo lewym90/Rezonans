@@ -293,7 +293,7 @@
   };
 
   /* miniatura: 16:9 (1280×720) albo 9:16 (1080×1920) ze zdjęcia z wyraźną twarzą */
-  S.thumb = async function (R, vertical) {
+  S.thumbCanvas = function (R, vertical) {
     const W = vertical ? 1080 : 1280, H = vertical ? 1920 : 720, c = document.createElement('canvas'); c.width = W; c.height = H;
     const ctx = c.getContext('2d'), pal = R.p.palette, im = R.imgs[R.thumbIdx || 0] || R.imgs[0];
     ctx.fillStyle = pal.bg; ctx.fillRect(0, 0, W, H);
@@ -313,8 +313,9 @@
       for (; px > 60; px -= 6) { face(px); if (ctx.measureText(line).width < 1130) break; }
       ctx.lineWidth = px * 0.14; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.strokeText(line, 70, 650); ctx.fillStyle = pal.accent; ctx.fillText(line, 70, 650);
     }
-    return new Promise((r) => c.toBlob(r, 'image/jpeg', 0.92));
+    return c;
   };
+  S.thumb = (R, vertical) => new Promise((r) => S.thumbCanvas(R, vertical).toBlob(r, 'image/jpeg', 0.92));
 
   /* ---------- odtwarzanie i nagrywanie ---------- */
   S.play = async function (R, canvas, opt) {
@@ -326,6 +327,7 @@
     let rec = null, chunks = [], stopFn;
     if (opt.record) {
       const dest = ctx.createMediaStreamDestination(); an.connect(dest);
+      if (opt.cover) g2.drawImage(opt.cover, 0, 0, canvas.width, canvas.height);
       const stream = canvas.captureStream(30); dest.stream.getAudioTracks().forEach((tr) => stream.addTrack(tr));
       const types = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
       const mt = types.find((x) => window.MediaRecorder && MediaRecorder.isTypeSupported(x));
@@ -341,7 +343,8 @@
     gain.gain.setValueAtTime(1, t0 + len - 0.7); gain.gain.linearRampToValueAtTime(0, t0 + len);
     const loop = () => {
       const t = start + Math.max(0, ctx.currentTime - t0);
-      an.getByteFrequencyData(freq); draw(g2, Math.min(t, start + len), freq, { W: canvas.width, H: canvas.height, t0: start, dur: len, short: opt.short });
+      an.getByteFrequencyData(freq);
+      if (opt.cover && t - start < 0.7) g2.drawImage(opt.cover, 0, 0, canvas.width, canvas.height); else draw(g2, Math.min(t, start + len), freq, { W: canvas.width, H: canvas.height, t0: start, dur: len, short: opt.short });
       if (opt.onProgress) opt.onProgress(Math.min(1, (t - start) / len));
       if (t >= start + len + 0.1 || done) { stopFn(); return; } raf = requestAnimationFrame(loop);
     };
@@ -502,7 +505,7 @@
   S.renderVideo = async function (id, short, onProgress, cv) {
     const s = App.song(id), M = S.mem(id), R = S.mk(id), W = short ? 720 : 1280, H = short ? 1280 : 720, c = cv || document.createElement('canvas'); c.width = W; c.height = H;
     const sw = short ? S.shortWindow(id) : { start: 0, len: M.an.dur };
-    const blob = await S.play(R, c, { start: sw.start, len: sw.len, record: true, short, onProgress });
+    const cover = S.thumbCanvas(R, short), blob = await S.play(R, c, { start: sw.start, len: sw.len, record: true, short, onProgress, cover });
     const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
     return { blob, W, H, name: (s.title || 'teledysk').replace(/[^\w\-]+/g, '_') + (short ? '_short' : '') + '.' + ext };
   };
