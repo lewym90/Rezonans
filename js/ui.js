@@ -517,7 +517,7 @@
     const s = App.state.settings;
     openSheet('Ustawienia', () => h('div', { class: 'stack' },
       h('p', { class: 'muted' }, 'Klucze zostają w tej przeglądarce na tym urządzeniu. Nie trafiają do repozytorium ani na żaden serwer poza usługą, do której należą.'),
-      field('Klucz Gemini (darmowy, aistudio.google.com)', h('input', { type: 'text', class: 'secret', name: 'rz-gemini', value: s.gemini, autocomplete: 'off', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', 'data-lpignore': 'true', placeholder: 'AIza…', oninput: (e) => { s.gemini = e.target.value.trim(); App.save(); } })),
+      field('Klucz Gemini (darmowy, aistudio.google.com)', h('input', { type: 'text', class: 'secret', name: 'rz-gemini', value: s.gemini, autocomplete: 'off', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', 'data-lpignore': 'true', placeholder: 'AIza…', oninput: (e) => { s.gemini = e.target.value.trim(); App.save(); if (App.studio) App.studio.resetPrep(); } })),
       h('button', { class: 'btn ghost', onclick: async (e) => { const b = e.currentTarget; b.disabled = true; b.textContent = 'Sprawdzam…'; try { await App.ai.gemini('Odpowiedz jednym słowem: OK', { temp: 0 }); toast('Klucz działa. Model: ' + App.state.settings.model); } catch (er) { toast(er.message); } b.disabled = false; b.textContent = 'Sprawdź klucz Gemini'; } }, 'Sprawdź klucz Gemini'),
       field('Model Gemini', h('input', { value: s.model, oninput: (e) => { s.model = e.target.value.trim(); App.save(); } })),
       field('Adres generatora obrazów (Cloudflare Worker)', h('input', { value: s.img || '', placeholder: 'https://…workers.dev/', oninput: (e) => { s.img = e.target.value.trim(); App.save(); } })),

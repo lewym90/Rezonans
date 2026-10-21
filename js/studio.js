@@ -475,6 +475,8 @@
     if (M.exact) { M.chorusText = S.chorusFromCaps(M.caps); if (M.chorusText && s.chorusAuto !== false) { s.chorusStart = mmss(M.chorusText.start); s.chorusAuto = true; } }
     App.save(); M.notes = notes; return notes;
   };
+  /* po zmianie klucza: wyczyść stare komunikaty i pozwól przygotować od nowa */
+  S.resetPrep = () => Object.keys(mem).forEach((k) => { const M = mem[k]; if (!M.running) { M.prepared = false; M.autoStarted = false; M.notes = []; } });
   S.runPrepare = async function (id, render) {
     const M = S.mem(id); if (M.running) return; M.running = true; M.notes = [];
     const say = (m) => { M.status = m; render(); };
