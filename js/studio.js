@@ -460,6 +460,7 @@
     const good = []; imgs.forEach((im, i) => { if (res[i] && !bad(res[i], i) && res[i].face) good.push(i); });
     let fixed = 0; imgs.forEach((im, i) => { if (bad(res[i], i) && good.length) { imgs[i] = imgs[good[i % good.length]]; fixed++; } });
     if (fixed) notes.push(fixed + ' kadrów bez twarzy zastąpiłem kadrem z bohaterem.');
+    M.goodIdx = good.slice();
     let bi = -1, bs = -1; imgs.forEach((im, i) => { const v = res[i]; if (v && v.face && !v.fragment && !v.broken && v.thumb > bs) { bs = v.thumb; bi = i; } });
     return bi;
   };
@@ -468,7 +469,16 @@
     const s = App.song(id), p = App.profile(s.profileId), M = S.mem(id), key = App.ai.hasKey(), notes = [];
     let keyDead = false, lines = S.lines(s.lyrics); M.exact = false; M.caps = null; M.plan = null; M.chorusText = null; M.align = lines.length ? 'przybliżone' : 'brak tekstu';
     if (key) {
-      try { say('Gemini słucha utworu i spisuje napisy…'); M.caps = await S.aiCaps(M.buf, M.an, lines, say); M.exact = true; if (M.caps.fails && M.caps.fails.length) notes.push('Część nagrania nie została spisana (' + M.caps.fails.length + ' z ' + S.chunks(M.an).length + ' kawałków). Kliknij „Przygotuj teledysk automatycznie”, żeby spróbować ponownie.'); M.align = 'ze słuchu (Gemini)'; lines = M.caps.map((c) => c.text); }
+      try {
+        const ck = (M.file ? M.file.size : 0) + ':' + Math.round(M.an.dur * 10);
+        if (s.caps && s.caps.key === ck && s.caps.list && s.caps.list.length > 5) { M.caps = s.caps.list; M.align = 'ze słuchu (zapisane)'; }
+        else {
+          say('Gemini słucha utworu i spisuje napisy…'); M.caps = await S.aiCaps(M.buf, M.an, lines, say); M.align = 'ze słuchu (Gemini)';
+          if (M.caps.fails && M.caps.fails.length) notes.push('Część nagrania nie została spisana (' + M.caps.fails.length + ' z ' + S.chunks(M.an).length + ' kawałków). Kliknij „Spisz napisy od nowa”, żeby spróbować ponownie.');
+          else { s.caps = { key: ck, list: M.caps.map((c) => ({ t: c.t, e: c.e, text: c.text })) }; App.save(); }
+        }
+        M.exact = true; lines = M.caps.map((c) => c.text);
+      }
       catch (e) { M.caps = null; keyDead = /^(Ten klucz|Darmowy limit|Brak klucza)/.test(e.message); notes.push(keyDead ? e.message + ' Do czasu naprawy klucza pokazuję napisy przybliżone, a sceny i obrazy powstają bez kontroli Gemini.' : 'Napisy: ' + e.message + ' Pokazuję napisy przybliżone. Kliknij „Przygotuj od nowa”, żeby spróbować ponownie.'); }
       if (lines.length && !keyDead) { try { say('Gemini układa sceny pod treść tekstu…'); M.plan = await App.ai.shots(p, s, lines); } catch (e) { M.plan = null; notes.push('Sceny z tekstu: ' + e.message); } }
     } else notes.push('Brak klucza Gemini: napisy i sceny nie będą dopasowane do nagrania (Ustawienia → Klucz Gemini).');
@@ -481,13 +491,34 @@
     if (M.exact) { M.chorusText = S.chorusFromCaps(M.caps); if (M.chorusText && s.chorusAuto !== false) { s.chorusStart = mmss(M.chorusText.start); s.chorusAuto = true; } }
     App.save(); M.notes = notes; return notes;
   };
+  /* tylko napisy: ponowne spisanie ze słuchu (bez nowych obrazów) */
+  S.recaption = async function (id, say) {
+    const s = App.song(id), M = S.mem(id); M.notes = [];
+    M.caps = await S.aiCaps(M.buf, M.an, S.lines(s.lyrics), say); M.exact = true; M.align = 'ze słuchu (Gemini)'; M.cuts = null;
+    if (!(M.caps.fails && M.caps.fails.length)) s.caps = { key: (M.file ? M.file.size : 0) + ':' + Math.round(M.an.dur * 10), list: M.caps.map((c) => ({ t: c.t, e: c.e, text: c.text })) };
+    M.chorusText = S.chorusFromCaps(M.caps); if (M.chorusText && s.chorusAuto !== false) { s.chorusStart = mmss(M.chorusText.start); s.chorusAuto = true; }
+    App.save();
+  };
   /* po zmianie klucza: wyczyść stare komunikaty i pozwól przygotować od nowa */
   S.resetPrep = () => Object.keys(mem).forEach((k) => { const M = mem[k]; if (!M.running) { M.prepared = false; M.autoStarted = false; M.notes = []; } });
-  S.runPrepare = async function (id, render) {
+  S.runPrepare = async function (id, render, mode) {
     const M = S.mem(id); if (M.running) return; M.running = true; M.notes = [];
     const say = (m) => { M.status = m; render(); };
-    try { await S.autoPrepare(id, say); M.prepared = true; } catch (e) { M.notes = [e.message || 'Błąd przygotowania']; }
+    try { if (mode === 'caps') await S.recaption(id, say); else await S.autoPrepare(id, say); M.prepared = true; } catch (e) { M.notes = [e.message || 'Błąd przygotowania']; }
     M.running = false; M.status = ''; render();
+  };
+  /* cięcia Shorta: zmiana kadru co 4 uderzenia, przez różne obrazy z bohaterem (bez przeskoków na tym samym obrazie) */
+  S.shortCuts = function (R, M, sw) {
+    const an = R.an, t0 = sw.start, t1 = sw.start + sw.len;
+    const pool = M.goodIdx && M.goodIdx.length >= 3 ? M.goodIdx.slice() : R.imgs.map((x, i) => i);
+    const orig = R.cuts.find((c) => c.t0 <= t0 && c.t1 > t0); let cur = orig && pool.includes(orig.img) ? orig.img : pool[0];
+    const bs = an.beats.filter((b) => b > t0 + 1.2 && b < t1 - 1.2), pts = [t0]; for (let i = 0; i < bs.length; i += 4) pts.push(bs[i]); pts.push(t1 + 1);
+    const cuts = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (i > 0) { const p = pool.indexOf(cur); cur = pool[(p + 1) % pool.length]; }
+      cuts.push({ t0: pts[i], t1: pts[i + 1], img: cur, motion: i % 2, soft: false });
+    }
+    return cuts;
   };
   /* okno Shorta: od zapowiedzi refrenu, przez refren, do końca linii; 16 do 30 s */
   S.shortWindow = function (id) {
@@ -505,6 +536,7 @@
   S.renderVideo = async function (id, short, onProgress, cv) {
     const s = App.song(id), M = S.mem(id), R = S.mk(id), W = short ? 720 : 1280, H = short ? 1280 : 720, c = cv || document.createElement('canvas'); c.width = W; c.height = H;
     const sw = short ? S.shortWindow(id) : { start: 0, len: M.an.dur };
+    if (short) R.cuts = S.shortCuts(R, M, sw);
     const cover = S.thumbCanvas(R, short), blob = await S.play(R, c, { start: sw.start, len: sw.len, record: true, short, onProgress, cover });
     const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
     return { blob, W, H, name: (s.title || 'teledysk').replace(/[^\w\-]+/g, '_') + (short ? '_short' : '') + '.' + ext };
@@ -563,7 +595,8 @@
           h('p', { class: 'muted small' }, M.exact ? 'Napisy włączone: spisane ze słuchu, z dokładnymi czasami. Gdyby były przesunięte, użyj suwaka poniżej.' : (M.running ? 'Napisy włączone (na razie przybliżone, za chwilę zostaną dopasowane do nagrania).' : 'Napisy włączone, ale przybliżone: bez klucza Gemini nie da się ich dokładnie dopasować.')),
           cv,
           h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: () => S.runPrepare(songId, render) }, icon('spark', 18), M.prepared ? 'Przygotuj od nowa (napisy, sceny, obrazy)' : 'Przygotuj teledysk automatycznie'),
-            h('button', { class: 'btn ghost', onclick: guard(async () => { const R = S.mk(songId); setBar(0); await S.play(R, cv, { start: S.shortWindow(songId).start, len: 15, record: false, onProgress: setBar }); showStill(); }) }, icon('refresh', 18), 'Podgląd 15 s z dźwiękiem')),
+            h('button', { class: 'btn ghost', onclick: guard(async () => { const R = S.mk(songId); setBar(0); await S.play(Object.assign({}, R, { cuts: S.shortCuts(R, M, S.shortWindow(songId)) }), cv, { start: S.shortWindow(songId).start, len: 15, record: false, onProgress: setBar }); showStill(); }) }, icon('refresh', 18), 'Podgląd 15 s z dźwiękiem')),
+          M.exact ? h('button', { class: 'btn ghost', onclick: () => S.runPrepare(songId, render, 'caps') }, icon('refresh', 18), 'Spisz napisy od nowa (gdyby były przesunięte)') : null,
           bar,
           M.imgs.length ? h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Obrazy w teledysku. Dotknij, żeby wybrać kadr na miniaturę (zaznaczony):'), h('div', { class: 'thumbs' }, M.imgs.map((im, i) => { const c = document.createElement('canvas'); c.width = 160; c.height = 160; const w = im.naturalWidth || im.width, hh = im.naturalHeight || im.height; c.getContext('2d').drawImage(im, 0, 0, w, hh, 0, 0, 160, 160); c.className = 'thumb' + ((M.thumbIdx || 0) === i ? ' sel' : ''); c.onclick = () => { M.thumbIdx = i; render(); }; return c; }))) : null,
           h('label', { class: 'field' }, h('span', { class: 'flabel' }, 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'), h('input', { type: 'range', min: -4, max: 4, step: 0.1, value: M.offset, oninput: (e) => { M.offset = +e.target.value; e.target.previousSibling.textContent = 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'; } })),
