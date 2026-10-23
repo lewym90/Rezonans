@@ -23,6 +23,7 @@
       for (let i = 0; i < n; i += len) { let cr = 1, ci = 0; for (let k = 0; k < h; k++) { const xr = re[i + k + h] * cr - im[i + k + h] * ci, xi = re[i + k + h] * ci + im[i + k + h] * cr; re[i + k + h] = re[i + k] - xr; im[i + k + h] = im[i + k] - xi; re[i + k] += xr; im[i + k] += xi; const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr; } }
     }
   }
+  S.fft = fft;
   function timbre(a, b, sr, step) {
     const N = 4096, NB = 24, frames = Math.floor(a.length / sr / step), lo = 90, hi = Math.min(8000, sr * 0.45), bin = sr / N;
     const edges = []; for (let i = 0; i <= NB; i++) edges.push(Math.max(1, Math.round(lo * Math.pow(hi / lo, i / NB) / bin)));
