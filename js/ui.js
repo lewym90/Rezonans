@@ -125,7 +125,7 @@
   UI.closeSheet = closeSheet;
 
   /* ---------- nawigacja ---------- */
-  const TABS = [['today', 'Dziś', 'today'], ['ideas', 'Pomysł', 'idea'], ['songs', 'Utwory', 'songs'], ['plan', 'Plan', 'plan'], ['profiles', 'Kanały', 'deck']];
+  const TABS = [['today', 'Dziś', 'today'], ['ideas', 'Pomysł', 'idea'], ['gen', 'Suno', 'spark'], ['songs', 'Utwory', 'songs'], ['plan', 'Plan', 'plan'], ['profiles', 'Kanały', 'deck']];
   UI.renderTabs = function () {
     const nav = $('#tabbar'); nav.textContent = '';
     TABS.forEach((t) => nav.appendChild(h('button', { class: 'tab' + (App.state.tab === t[0] ? ' on' : ''), 'aria-current': App.state.tab === t[0] ? 'page' : null, onclick: () => UI.go(t[0]) }, icon(t[2], 22), h('span', null, t[1]))));
@@ -134,7 +134,7 @@
   UI.render = function () {
     UI.applyTheme();
     const v = $('#view'); v.textContent = '';
-    const fn = { today: renderToday, ideas: renderIdeas, songs: renderSongs, plan: renderPlan, profiles: renderProfiles }[App.state.tab];
+    const fn = { today: renderToday, ideas: renderIdeas, songs: renderSongs, plan: renderPlan, profiles: renderProfiles, gen: () => App.gen.view() }[App.state.tab];
     v.appendChild(fn());
   };
   UI.refreshBody = function () { // odświeża tylko część pod talią
