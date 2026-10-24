@@ -23,7 +23,6 @@
     const x = Array.isArray(r) ? r[0] : r;
     s.titleOptions = [].concat(x.titles || []).map((t) => String(t).trim()).filter(Boolean).slice(0, 3);
     if (x.genre_label) s.genreLabel = String(x.genre_label).trim().slice(0, 60);
-    if (!s.thumbWords && x.thumb_words) s.thumbWords = String(x.thumb_words).toUpperCase().trim().split(/\s+/).slice(0, 3).join(' ');
     if ((!s.title || s.titleAuto) && s.titleOptions[0]) { s.title = s.titleOptions[0]; s.titleAuto = true; }
     if (win[0] === 0) {
       let ch = [].concat(x.chapters || []).map((c) => ({ sec: secOf(c.t), n: String(c.n || '').trim() })).filter((c) => c.sec !== null && c.n).sort((a, b) => a.sec - b.sec);

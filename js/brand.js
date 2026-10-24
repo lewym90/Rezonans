@@ -200,7 +200,7 @@
     const s = App.song(id), p = App.profile(s.profileId), M = S.mem(id), ln = S.lines(s.lyrics);
     const caps = M.exact && M.caps && M.caps.length ? M.caps : (M.approx !== false && ln.length ? S.heurCaps(ln, M.an) : []);
     const heroes = M.heroes && M.heroes.length ? M.heroes : [S.procArt(p, 3)], sel = Math.min(M.heroSel || 0, heroes.length - 1);
-    return { mode: 'brand', p, an: M.an, bass: M.bass, hero: heroes[sel], heroes, heroSel: sel, logo: S.logoImg(p), caps, offset: M.offset, title: s.title || '', buf: M.buf, thumbWords: s.thumbWords || '', thumbVar16: M.thumbVar16 || 0, thumbVar9: M.thumbVar9 || 0, cuts: [], imgs: heroes };
+    return { mode: 'brand', p, an: M.an, bass: M.bass, hero: heroes[sel], heroes, heroSel: sel, logo: S.logoImg(p), caps, offset: M.offset, title: s.title || '', buf: M.buf, thumbWords: s.thumbUser ? (s.thumbWords || '') : '', thumbVar16: M.thumbVar16 || 0, thumbVar9: M.thumbVar9 || 0, cuts: [], imgs: heroes };
   };
 
   /* ---------- trzy tła do wyboru ---------- */
@@ -271,10 +271,10 @@
     out.push(h('div', { class: 'stack' }, h('span', { class: 'flabel' }, '1. Tło teledysku: dotknij, żeby wybrać jedno'),
       h('div', { class: 'thumbs' }, M.heroes.map((im, i) => { const c = small(im, 240); c.className = 'thumb' + (i === sel ? ' sel' : ''); c.onclick = () => { M.heroSel = i; M.tc = null; render(); }; return c; })),
       h('button', { class: 'btn ghost', disabled: M.running ? 'true' : null, onclick: () => S.newHeroes(songId, render) }, icon('refresh', 18), 'Wygeneruj inne 3 tła')));
-    const words = h('input', { value: s.thumbWords || (s.title || '').toUpperCase().split(/\s+/).slice(0, 3).join(' '), maxlength: 40, oninput: (e) => { s.thumbWords = e.target.value; } });
+    const words = h('input', { value: (s.thumbUser && s.thumbWords) || (s.title || '').toUpperCase().split(/\s+/).slice(0, 3).join(' '), maxlength: 40, oninput: (e) => { s.thumbWords = e.target.value; s.thumbUser = true; } });
     out.push(h('label', { class: 'field' }, h('span', { class: 'flabel' }, 'Napis na miniaturze (maksymalnie 3 słowa)'), words,
-      h('button', { class: 'btn ghost sm', onclick: () => { s.thumbWords = words.value.toUpperCase().trim(); M.tc = null; App.save(); render(); } }, 'Odśwież miniatury')));
-    const R = S.mk(songId), key = (s.thumbWords || s.title || '') + '|' + M.heroes.length + '|' + sel + '|' + (R.logo ? 1 : 0);
+      h('button', { class: 'btn ghost sm', onclick: () => { s.thumbWords = words.value.toUpperCase().trim(); s.thumbUser = true; M.tc = null; App.save(); render(); } }, 'Odśwież miniatury')));
+    const R = S.mk(songId), key = ((s.thumbUser && s.thumbWords) || s.title || '') + '|' + M.heroes.length + '|' + sel + '|' + (R.logo ? 1 : 0);
     if (!M.tc || M.tc.key !== key) {
       const c16 = [0, 1, 2].map((v) => S.thumbBrand(R, false, v)), c9 = [0, 1, 2].map((v) => S.thumbBrand(R, true, v));
       M.tc = { key, c16, c9 };
