@@ -225,3 +225,6 @@ input.secret{-webkit-text-security:disc;text-security:disc}
 .screen > :is(.okbox, .warnbox, .field, a.btn, button.btn, label.btn, p.muted, .cp, h4) { margin-left: 20px; margin-right: 20px; }
 .screen > h4 { margin-top: 6px; }
 @media (min-width: 720px) { .compose, .seg, .dgrid { margin-left: 20px; margin-right: 20px; } .hdr { padding: 24px 20px 16px; } }
+
+.thumbs.wide { grid-template-columns: 1fr; }
+@media (min-width: 720px) { .thumbs.wide { grid-template-columns: repeat(3, 1fr); } }

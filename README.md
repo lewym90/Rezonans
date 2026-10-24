@@ -3,7 +3,7 @@
 Od pomysłu do publikacji: studio dla twórców muzyki z Suno. Aplikacja działa w przeglądarce (PWA), bez serwera i bez kosztów.
 
 ## Co potrafi (etap 1)
-- **Kanały** z DNA (gatunek, motywy, symbole, style do Suno, dane z YouTube Studio). Start: Melodia Maszyny i Willa Hayes. Kolory całej aplikacji dostosowują się do aktywnego kanału.
+- **Kanały** z DNA (gatunek, motywy, symbole, style do Suno, dane z YouTube Studio). Start: Melodia Maszyny i Warhead Bass (@WARHEAD_BASS, po angielsku, USA). Kolory całej aplikacji dostosowują się do aktywnego kanału.
 - **Pomysł**: „Mam pomysł" (ocena dopasowania do kanału i wzmocnienie) albo „Zaskocz mnie" (propozycje z danych kanału).
 - **Pakiet dla Suno**: tytuł, prompt stylu (limit 1000 znaków), tekst (limit 5000), kontrola wulgaryzmów, prompt do dowolnego czatu AI. Opcjonalnie tekst z Gemini.
 - **Pakiet publikacji**: tytuły, opis, hashtagi, tagi, przypięty komentarz, hooki do Shortów, harmonogram, miniatura.
@@ -46,3 +46,9 @@ Projekty API bez weryfikacji i tak zawsze wgrywają filmy jako prywatne.
 
 ## Dane ze Studio
 Plan → Importuj dane ze Studio. Wybierz pliki ZIP lub CSV wyeksportowane z Analityki (Tryb zaawansowany, zakres Cały czas). Aplikacja odświeży statystyki, wnioski i przewodnik.
+
+
+## Wersja 30
+- Teledysk w stylu „marka”: jedna wybrana grafika (3 propozycje), logo kanału pulsujące na stopę, fale uderzeniowe i cząstki w rytm basu, tytuł i nazwa kanału. Logo leżą w `assets/logos/`.
+- Miniatury: 3 propozycje 16:9 i 3 propozycje 9:16, wybrana jest pierwszym kadrem filmu.
+- „Mam gotowy utwór” (zakładka Utwory): wgraj mp3 zrobiony poza aplikacją, a dostaniesz tytuły, opis z rozdziałami, tagi, napisy, tła, miniatury, teledysk 16:9 i Short.

@@ -31,7 +31,9 @@
       const field = (label, value, rows) => h('div', { class: 'wz-field' }, h('div', { class: 'wz-fh' }, h('span', { class: 'flabel' }, label), K.copyBtn(() => value, label)), rows ? h('textarea', { rows, readonly: true, value }) : h('div', { class: 'wz-val' }, value));
       const ol = (items) => h('ol', { class: 'wz-ol' }, items.map((x) => h('li', null, x)));
       let body;
-      if (cur === 1) {
+      if (cur === 1 && s.own) {
+        body = h('div', { class: 'stack' }, h('div', { class: 'okbox' }, 'To Twój własny utwór, więc Suno nie jest tu potrzebne. Przejdź do kolejnych kroków.'), s.styleNote ? h('p', { class: 'muted small' }, 'Brzmienie według analizy: ' + s.styleNote) : null);
+      } else if (cur === 1) {
         const empty = !s.lyrics || /\[(Verse \d)\]\s*\n\s*\n/.test(s.lyrics);
         body = h('div', { class: 'stack' },
           ol(['Otwórz Suno i wejdź w Create, potem w tryb Custom.', 'Wklej poniższe trzy rzeczy do trzech pól: tytuł, styl i tekst. Skopiuj każdą kropką obok nazwy.', 'Kliknij Create. Suno robi dwie wersje. Posłuchaj obu na słuchawkach i wybierz lepszą.']),
@@ -50,7 +52,7 @@
           h('p', { class: 'muted small' }, 'Plik zostaje w pamięci aplikacji. Jeśli masz klucz Gemini, przy przygotowaniu teledysku nagranie jest jednorazowo wysyłane do Gemini, żeby spisać napisy ze słuchu. Nie jest nigdzie zapisywane przez aplikację.'));
       } else if (cur === 3) {
         body = h('div', { class: 'stack' },
-          ol(['Kliknij „Przygotuj teledysk automatycznie”. Aplikacja ułoży sceny z tekstu, wygeneruje obrazy i dopasuje napisy.', 'Obejrzyj podgląd 15 sekund z dźwiękiem.', 'Zrenderuj film 16:9 i Short 9:16. Trwa tyle, ile utwór. Nie wychodź z aplikacji.', 'Zapisz plik albo od razu wyślij na YouTube jako prywatny.']),
+          ol(S.mode(s) === 'brand' ? ['Aplikacja spisuje napisy ze słuchu i generuje trzy tła. Poczekaj na koniec (do kilku minut).', 'Wybierz jedno tło, miniaturę 16:9 i miniaturę 9:16 (każda ma trzy propozycje).', 'Obejrzyj podgląd 15 sekund z dźwiękiem: logo pulsuje na stopę, w tle cząstki i fale.', 'Zrenderuj film 16:9 i Short 9:16 (trwa tyle, ile utwór, nie wychodź z aplikacji), potem zapisz plik albo wyślij na YouTube jako prywatny.'] : ['Kliknij „Przygotuj teledysk automatycznie”. Aplikacja ułoży sceny z tekstu, wygeneruje obrazy i dopasuje napisy.', 'Obejrzyj podgląd 15 sekund z dźwiękiem.', 'Zrenderuj film 16:9 i Short 9:16. Trwa tyle, ile utwór. Nie wychodź z aplikacji.', 'Zapisz plik albo od razu wyślij na YouTube jako prywatny.']),
           S.panel(id, render, true));
       } else if (cur === 4) {
         const pubV = s.publishAt || App.toLocalInput(App.nextAt(p.publish.time));
@@ -58,7 +60,8 @@
         body = h('div', { class: 'stack' },
           h('div', { class: 'okbox' }, s.yt && s.yt.full ? 'Film jest już na kanale jako prywatny. Wejdź w YouTube Studio → Treści i ustaw go na publiczny.' : 'Jeśli film nie jest jeszcze na kanale, wyślij go w poprzednim kroku jednym kliknięciem albo wgraj ręcznie: YouTube Studio → Utwórz → Prześlij film.'),
           ol(['Wybierz jeden z tytułów i skopiuj.', 'Wklej opis i tagi do formularza filmu.', 'Wybierz godzinę premiery: Widoczność → Zaplanuj.', 'Na pytanie o dzieci wybierz „Nie, to nie jest film dla dzieci”. Przy pytaniu o treści zmienione lub syntetyczne zaznacz zgodnie z prawdą, bo głos i obraz są tworzone przez AI.']),
-          h('p', { class: 'flabel' }, 'Tytuł (wybierz jeden)'), h('div', { class: 'cps' }, pack.titles.map((t) => row(t))),
+          s.own && s.titleOptions && s.titleOptions.length ? h('div', { class: 'stack' }, h('p', { class: 'flabel' }, 'Propozycje tytułu piosenki z analizy (kliknij, żeby ustawić)'), h('div', { class: 'chips' }, s.titleOptions.map((t) => K.chip(t, s.title === t, () => { s.title = t; s.titleAuto = false; save(); render(); })))) : null,
+          h('p', { class: 'flabel' }, 'Tytuł filmu (wybierz jeden)'), h('div', { class: 'cps' }, pack.titles.map((t) => row(t))),
           h('p', { class: 'flabel' }, 'Opis'), h('textarea', { rows: 9, readonly: true, value: pack.description }), h('button', { class: 'btn ghost', onclick: () => App.ui.copy(pack.description, 'Opis skopiowany') }, icon('copy', 18), 'Kopiuj opis'),
           h('p', { class: 'flabel' }, 'Tagi'), row(pack.tags.join(', ')),
           h('label', { class: 'field' }, h('span', { class: 'flabel' }, 'Premiera'), h('input', { type: 'datetime-local', value: pubV, onchange: (e) => { s.publishAt = e.target.value ? new Date(e.target.value).toISOString() : ''; save(); } })),

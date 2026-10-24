@@ -1,7 +1,7 @@
 (function () {
   const App = (window.App = window.App || {});
   const KEY = 'rezonans.v1';
-  App.version = 29;
+  App.version = 30;
   App.uid = (p) => (p || 'id') + '_' + Math.random().toString(36).slice(2, 9);
   App.state = {
     profiles: [], songs: [], activeProfile: 'melodia', tab: 'today',
@@ -19,6 +19,13 @@
     try { raw = localStorage.getItem(KEY); } catch (e) { /* ignore */ }
     if (raw) { try { Object.assign(App.state, JSON.parse(raw)); } catch (e) { /* ignore */ } }
     if (!App.state.profiles || !App.state.profiles.length) App.state.profiles = App.clone(App.DATA.profiles);
+    // migracja v30: kanał Willa Hayes usunięty, dodany Warhead Bass, logo i marka w profilach
+    App.state.profiles = App.state.profiles.filter((p) => p.id !== 'willa');
+    App.state.songs = (App.state.songs || []).filter((x) => x.profileId !== 'willa');
+    App.DATA.profiles.forEach((d) => {
+      const have = App.state.profiles.find((p) => p.id === d.id);
+      if (!have) App.state.profiles.push(App.clone(d)); else if (!have.brand) have.brand = App.clone(d.brand);
+    });
     if (!App.state.profiles.find((p) => p.id === App.state.activeProfile)) App.state.activeProfile = App.state.profiles[0].id;
     App.state.settings = Object.assign({ gemini: '', yt: '', model: 'gemini-3.8-flash', img: 'https://rezonans-img.lewandowski-m-90.workers.dev/', ytClient: '43164945118-f2o3h3ko4vamm6oj27m2ajm8819p5okc.apps.googleusercontent.com' }, App.state.settings || {});
   };

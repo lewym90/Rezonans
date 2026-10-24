@@ -342,6 +342,7 @@
     const p = App.profile(), songs = App.songsOf().sort((a, b) => b.created - a.created);
     const root = h('div', { class: 'screen' });
     root.appendChild(header('Utwory', p.name, h('button', { class: 'iconbtn', 'aria-label': 'Dodaj utwór', onclick: () => { const s = { id: App.uid('song'), profileId: p.id, title: '', premise: '', variantId: (p.styleVariants[0] || {}).id, lyrics: '', status: 'gotowy', created: Date.now(), checks: {}, results: {}, scenes: [] }; App.state.songs.push(s); App.save(); openSong(s.id); } }, icon('plus', 22))));
+    root.appendChild(h('div', { class: 'row-btns pad' }, h('button', { class: 'btn big', onclick: () => App.own.open() }, icon('film', 18), 'Mam gotowy utwór: przygotuj publikację')));
     if (!songs.length) root.appendChild(h('div', { class: 'emptystate' }, h('b', null, 'Brak utworów w tym kanale'), h('p', null, 'Zacznij od pomysłu albo dodaj utwór, który już masz.'), h('button', { class: 'btn', onclick: () => UI.go('ideas') }, 'Nowy pomysł')));
     else root.appendChild(h('div', { class: 'list' }, songs.map((s) => {
       const pr = E.progress(p, s);

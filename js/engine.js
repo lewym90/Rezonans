@@ -22,9 +22,9 @@
       if (!(p.dna.usedSymbols || []).includes(idea.symbol)) r.push('Nowy symbol („' + idea.symbol + '”) odświeża kanał bez zmiany stylu. Zmieniaj jedną rzecz naraz.');
       r.push('Tytuł zawiera frazę do wyszukiwania: ' + idea.title.toLowerCase() + '.');
     } else {
-      r.push('Pierwsza linia refrenu („' + idea.hook + '”) jest gotowym tytułem Shorta, a ten format wygrywa u Willi.');
+      r.push('Pierwsza linia refrenu („' + idea.hook + '”) jest gotowym tytułem Shorta i skandowanym hookiem.');
       if (!(p.dna.usedSymbols || []).includes(idea.symbol)) r.push('Nowy obraz („' + idea.symbol + '”) zmienia scenerię bez zmiany klimatu.');
-      r.push('Krótka linia po angielsku, prosty język, jedna konkretna rzecz. Tak brzmią najlepsze Shorty kanału.');
+      r.push('Krótka linia po angielsku, prosty język, jedna konkretna rzecz. Takie hooki łatwo skandować na siłowni i w aucie.');
     }
     return r;
   };
@@ -53,10 +53,10 @@
       add(!dup, 16, 'Nie powtarza istniejącego tytułu.', 'Pomysł powtarza istniejący tytuł. Zmień obraz albo punkt widzenia.');
       add(!/pierdol|kurw|jeb|chuj/.test(t), 15, 'Brak wulgaryzmów w założeniu, więc łatwiej o pełne reklamy.', 'Wulgaryzmy w założeniu mogą ograniczyć reklamy.');
     } else {
-      const obj = (p.dna.symbols || []).concat(['door', 'coat', 'bus', 'window', 'road', 'light', 'cup', 'rain', 'car', 'porch', 'roof']).find((s) => t.includes(norm(s).split(' ').pop()));
-      add(!!obj, 25, 'Jest konkretny przedmiot lub miejsce (' + obj + ').', 'Dodaj jedną konkretną rzecz (drzwi, płaszcz, droga, okno). Tak zaczynają się najlepsze teksty tego kanału.');
-      add(/leav|wait|goodbye|gone|night|rain|quiet|almost|left|miss|cold|alone|zostaw|czek|odejs|noc|deszcz|cisz|rozsta/.test(t), 20, 'Temat pasuje do klimatu (rozstanie, czekanie, noc).', 'Dodaj wątek rozstania, czekania lub nocy.');
-      add(words > 0 && words <= 12, 15, 'Krótko, więc linia nadaje się na tytuł Shorta.', 'Skróć do jednej linii, którą da się zaśpiewać jako pierwszą w refrenie.');
+      const obj = (p.dna.symbols || []).concat(['bar', 'iron', 'steel', 'car', 'road', 'speaker', 'bass', 'forge', 'hammer', 'door', 'window', 'light', 'rain']).find((s) => t.includes(norm(s).split(' ').pop()));
+      add(!!obj, 25, 'Jest konkretny przedmiot lub miejsce (' + obj + ').', 'Dodaj jedną konkretną rzecz (sztanga, głośnik, droga, kuźnia). Konkret łatwo pokazać w teledysku.');
+      add(/lift|drive|destroy|war|iron|steel|bass|gym|night|power|pain|fire|forge|train|load|bar|rage|trening|silown|noc/.test(t), 20, 'Temat pasuje do klimatu kanału (siła, bas, siłownia, nocna jazda).', 'Dodaj wątek siły, treningu, basu lub nocnej jazdy.');
+      add(words > 0 && words <= 12, 15, 'Krótko, więc linia nadaje się na hook i tytuł Shorta.', 'Skróć do jednej linii, którą da się skandować.');
       const ascii = text && (text.match(/[ąćęłńóśźż]/gi) || []).length === 0;
       add(ascii, 15, 'Język jest zgodny z kanałem.', 'Ten kanał jest po angielsku. Wpisz pomysł lub linię po angielsku.');
       const dup = (p.dna.used || []).some((u) => t.includes(norm(u)));
@@ -165,10 +165,17 @@
     const hooks = E.hooks(song.lyrics);
     const hook = hooks[0] || title;
     const tags = Array.from(new Set((p.dna.tags || []).concat(title.toLowerCase().split(/\s+/).filter((w) => w.length > 3)))).slice(0, 14);
-    const h3 = (p.dna.hashtags || []).slice(0, 3).join(' ');
+    const WH = p.id === 'warhead', slogan = (p.brand && p.brand.slogan) || '';
+    const h3 = WH ? '#heavymetal #gymmusic #bassboosted' : (p.dna.hashtags || []).slice(0, 3).join(' ');
+    const labelOf = { metal: 'Symphonic Metal Gym Music', rap: 'Dark Rap Gym Anthem', car: 'Bass Boosted Car Audio Test', gym: 'Industrial Metal Workout Music' };
+    const label = song.genreLabel || labelOf[song.variantId] || 'Heavy Music for the Gym & Car';
+    const chapters = (song.chapters || []).length >= 3 ? song.chapters.map((c) => c.t + ' ' + c.n) : [];
+    const cut100 = (x) => (x.length > 100 ? x.slice(0, 99).replace(/\s+\S*$/, '') : x);
     const titles = pl
       ? [title, title + ' | muzyka na trening i motywację', title + ' – polski rap z orkiestrą', hook + ' ' + (p.dna.hashtags || []).slice(0, 2).join(' ')]
-      : [title + ' — late night country', title, hook, title + ' | sad country song'];
+      : WH
+        ? [cut100(p.name.toUpperCase() + ' - ' + title + ' | ' + label), cut100(title + ' | ' + label), cut100(title + ' (Official Visualizer) | ' + p.name), hook]
+        : [title, title + ' | ' + (p.dna.genre || '').split(',')[0], hook, title + ' (Official Visualizer)'];
     const shortTitles = hooks.slice(0, 3).map((h) => (pl ? h.replace(/!$/, '') + ' ' + (p.dna.hashtags || [])[0] : h));
     const desc = pl
       ? [
@@ -183,10 +190,10 @@
           '',
           h3
         ]
-      : [
-          title + ' — a late night country song for the quiet hours.',
-          '',
-          'A quiet one for the late hours. ' + cap(p.dna.genre || '') + '.',
+      : WH
+        ? [p.name.toUpperCase() + ' - ' + title + ' | ' + label, slogan + ' Best on speakers or in the car.', ''].concat(chapters.length ? chapters.concat(['']) : [], ['Music created with AI (Suno, paid plan); arranged, mixed and mastered by ' + p.name + '.', '', '#heavymetal #gymmusic #bassboosted #carmusic #workoutmusic'])
+        : [
+          title + ' — ' + (p.dna.genre || ''),
           '',
           'Subscribe for new songs every week, and tell me in the comments where you are listening from.',
           '',
@@ -197,7 +204,7 @@
     if (song.lyrics && song.includeLyrics) desc.splice(desc.length - 2, 0, '', pl ? 'Tekst:' : 'Lyrics:', song.lyrics.replace(/\n{3,}/g, '\n\n'));
     const pinned = pl
       ? 'Który fragment robi największy zryw? Napisz w komentarzu. Pełny film i nowe utwory co tydzień: zapisz kanał.'
-      : 'Which line stayed with you? Tell me in the comments. New songs every week, subscribe so you don\'t miss the next one.';
+      : WH ? 'What car did you test this in? How many pounds did you add to the bar? New tracks every week, subscribe so you don\'t miss the next one.' : 'Which line stayed with you? Tell me in the comments. New songs every week, subscribe so you don\'t miss the next one.';
     const t0 = App.nextAt(p.publish.time, song.publishAt ? new Date(song.publishAt) : undefined);
     const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
     return {
@@ -272,9 +279,7 @@
     }
     const q = best.parts;
     const lead = q.lead.join(', ');
-    const style = p.id === 'willa'
-      ? [q.genre, q.groove, lead, q.rhythm, q.vocal].filter(Boolean).join(', ')
-      : [q.genre, q.groove, lead, q.vocal, q.hook, q.mix].filter(Boolean).join(', ');
+    const style = [q.genre, q.groove, lead, q.rhythm, q.vocal, q.hook, q.mix].filter(Boolean).join(', ');
     return { name: q.genre, style: style.slice(0, 1000), sig: best.sig };
   };
   E.styleAvoid = function (p) { return App.songsOf(p.id).slice().sort((a, b) => b.created - a.created).map((s) => s.styleSig).filter(Boolean); };

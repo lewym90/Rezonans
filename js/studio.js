@@ -226,6 +226,7 @@
 
   /* ---------- rysowanie klatki ---------- */
   S.makeRenderer = function (R) {
+    if (R.mode === 'brand') return S.makeBrandRenderer(R);
     const { p, an, imgs, cuts } = R, pal = p.palette, pl = p.lang === 'pl';
     const font = (px, w) => (w || 800) + ' ' + px + 'px "Bricolage Grotesque", system-ui, -apple-system, sans-serif';
     const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; };
@@ -295,6 +296,7 @@
 
   /* miniatura: 16:9 (1280×720) albo 9:16 (1080×1920) ze zdjęcia z wyraźną twarzą */
   S.thumbCanvas = function (R, vertical) {
+    if (R.mode === 'brand') return S.thumbBrand(R, vertical, vertical ? R.thumbVar9 : R.thumbVar16);
     const W = vertical ? 1080 : 1280, H = vertical ? 1920 : 720, c = document.createElement('canvas'); c.width = W; c.height = H;
     const ctx = c.getContext('2d'), pal = R.p.palette, im = R.imgs[R.thumbIdx || 0] || R.imgs[0];
     ctx.fillStyle = pal.bg; ctx.fillRect(0, 0, W, H);
@@ -427,12 +429,13 @@
   S.hasAudio = (id) => !!(mem[id] && mem[id].an);
   S.loadFile = async function (id, file) {
     const M = S.mem(id), s = App.song(id);
-    M.file = file; M.ab = await file.arrayBuffer(); M.buf = await S.decode(M.ab.slice(0)); M.an = S.analyze(M.buf); M.cuts = null; M.caps = null; M.exact = false; M.align = ''; M.plan = null; M.chorusText = null; M.generated = false; M.notes = []; M.prepared = false; M.autoStarted = false;
+    M.file = file; M.ab = await file.arrayBuffer(); M.buf = await S.decode(M.ab.slice(0)); M.an = S.analyze(M.buf); M.cuts = null; M.caps = null; M.exact = false; M.align = ''; M.plan = null; M.chorusText = null; M.generated = false; M.notes = []; M.prepared = false; M.autoStarted = false; M.heroes = null; M.heroSel = 0; M.tc = null; M.bass = S.bassTrack(M.buf, M.an);
     if (s.chorusAuto !== false) { s.chorusStart = mmss(M.an.chorus.start); s.chorusAuto = true; }
     s.mp3 = file.name; App.save(); return M.an;
   };
   const capIdxAt = (caps, t) => { let k = -1; for (let i = 0; i < caps.length; i++) if (caps[i].t <= t) k = i; else break; return k; };
   S.mk = function (id) {
+    if (S.mode(App.song(id)) === 'brand') return S.mkBrand(id);
     const s = App.song(id), p = App.profile(s.profileId), M = S.mem(id), ln = S.lines(s.lyrics);
     const mapCaps = M.exact && M.caps && M.caps.length ? M.caps : (ln.length ? S.heurCaps(ln, M.an) : []);
     const plan = S.plan(s, M, mapCaps.length), pm = planMap(plan);
@@ -505,7 +508,7 @@
   S.runPrepare = async function (id, render, mode) {
     const M = S.mem(id); if (M.running) return; M.running = true; M.notes = [];
     const say = (m) => { M.status = m; render(); };
-    try { if (mode === 'caps') await S.recaption(id, say); else await S.autoPrepare(id, say); M.prepared = true; } catch (e) { M.notes = [e.message || 'Błąd przygotowania']; }
+    try { if (mode === 'caps') await S.recaption(id, say); else if (S.mode(App.song(id)) === 'brand') await S.autoPrepareBrand(id, say); else await S.autoPrepare(id, say); M.prepared = true; } catch (e) { M.notes = [e.message || 'Błąd przygotowania']; }
     M.running = false; M.status = ''; render();
   };
   /* cięcia Shorta: zmiana kadru co 4 uderzenia, przez różne obrazy z bohaterem (bez przeskoków na tym samym obrazie) */
@@ -535,9 +538,10 @@
     return { start, len: Math.max(12, Math.min(end, dur) - start) };
   };
   S.renderVideo = async function (id, short, onProgress, cv) {
-    const s = App.song(id), M = S.mem(id), R = S.mk(id), W = short ? 720 : 1280, H = short ? 1280 : 720, c = cv || document.createElement('canvas'); c.width = W; c.height = H;
+    const s = App.song(id); await S.loadLogo(App.profile(s.profileId));
+    const M = S.mem(id), R = S.mk(id), W = short ? 720 : 1280, H = short ? 1280 : 720, c = cv || document.createElement('canvas'); c.width = W; c.height = H;
     const sw = short ? S.shortWindow(id) : { start: 0, len: M.an.dur };
-    if (short) R.cuts = S.shortCuts(R, M, sw);
+    if (short && R.mode !== 'brand') R.cuts = S.shortCuts(R, M, sw);
     const cover = S.thumbCanvas(R, short), blob = await S.play(R, c, { start: sw.start, len: sw.len, record: true, short, onProgress, cover });
     const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
     return { blob, W, H, name: (s.title || 'teledysk').replace(/[^\w\-]+/g, '_') + (short ? '_short' : '') + '.' + ext };
@@ -583,11 +587,13 @@
         out.appendChild(h('button', { class: 'btn big ghost', onclick: guard(async () => { toast('Zaloguj się i wybierz kanał: ' + p.name); const x = await S.sendPrivate(songId, r.blob, short, setBar); out.appendChild(h('p', { class: 'hint' }, 'Wysłano jako prywatny na kanał „' + x.channel + '”.' + (x.thumbErr ? ' ' + x.thumbErr : ''))); out.appendChild(h('a', { class: 'btn big', href: 'https://studio.youtube.com/video/' + x.id + '/edit', target: '_blank', rel: 'noopener' }, 'Otwórz w YouTube Studio')); }) }, icon('upload', 18), 'Wyślij na YouTube jako prywatny'));
         toast('Gotowe');
       });
-      if (hasAudio && key && !M.prepared && !M.running && !M.autoStarted) { M.autoStarted = true; setTimeout(() => S.runPrepare(songId, render), 50); }
+      const brand = S.mode(s) === 'brand';
+      if (hasAudio && (key || brand) && !M.prepared && !M.running && !M.autoStarted) { M.autoStarted = true; setTimeout(() => S.runPrepare(songId, render), 50); }
       if (hasAudio) showStill();
       return h('div', { class: 'stack' },
         embedded ? null : h('p', { class: 'muted' }, 'Wczytaj mp3 z Suno. Aplikacja znajdzie tempo i refren, ułoży cięcia w rytm i dopasuje napisy. Wideo powstaje w tej przeglądarce, za darmo.'),
         h('label', { class: 'btn big filebtn' }, icon('plus', 18), hasAudio ? 'Zmień plik mp3' : 'Wybierz plik mp3', fileIn),
+        h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Styl teledysku'), h('div', { class: 'row-btns' }, [['brand', 'Marka: jedno tło, logo w rytm basu'], ['scenes', 'Sceny z tekstu']].map((x) => App.ui.kit.chip(x[1], S.mode(s) === x[0], () => { s.look = x[0]; M.prepared = false; M.autoStarted = false; App.save(); render(); })))),
         M.status ? h('p', { class: 'hint' }, M.status) : null,
         hasAudio ? h('div', { class: 'stack' },
           h('p', { class: 'muted small' }, 'Czas ' + mmss(M.an.dur) + ' · tempo ok. ' + Math.round(M.an.bpm) + ' bpm · Short od ' + mmss(S.shortWindow(songId).start) + (M.chorusText && s.chorusAuto !== false ? ' (refren z tekstu)' : s.chorusAuto === false ? ' (ustawiony ręcznie)' : ' (refren z dźwięku)') + ' · napisy: ' + (M.align || '—')),
@@ -599,12 +605,15 @@
             h('button', { class: 'btn ghost', onclick: guard(async () => { const R = S.mk(songId); setBar(0); await S.play(Object.assign({}, R, { cuts: S.shortCuts(R, M, S.shortWindow(songId)) }), cv, { start: S.shortWindow(songId).start, len: 15, record: false, onProgress: setBar }); showStill(); }) }, icon('refresh', 18), 'Podgląd 15 s z dźwiękiem')),
           M.exact ? h('button', { class: 'btn ghost', onclick: () => S.runPrepare(songId, render, 'caps') }, icon('refresh', 18), 'Spisz napisy od nowa (gdyby były przesunięte)') : null,
           bar,
-          M.imgs.length ? h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Obrazy w teledysku. Dotknij, żeby wybrać kadr na miniaturę (zaznaczony):'), h('div', { class: 'thumbs' }, M.imgs.map((im, i) => { const c = document.createElement('canvas'); c.width = 160; c.height = 160; const w = im.naturalWidth || im.width, hh = im.naturalHeight || im.height; c.getContext('2d').drawImage(im, 0, 0, w, hh, 0, 0, 160, 160); c.className = 'thumb' + ((M.thumbIdx || 0) === i ? ' sel' : ''); c.onclick = () => { M.thumbIdx = i; render(); }; return c; }))) : null,
+          brand ? h('div', { class: 'stack' }, S.brandBlocks(songId, render, guard, toast)) : null,
+          !brand && M.imgs.length ? h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Obrazy w teledysku. Dotknij, żeby wybrać kadr na miniaturę (zaznaczony):'), h('div', { class: 'thumbs' }, M.imgs.map((im, i) => { const c = document.createElement('canvas'); c.width = 160; c.height = 160; const w = im.naturalWidth || im.width, hh = im.naturalHeight || im.height; c.getContext('2d').drawImage(im, 0, 0, w, hh, 0, 0, 160, 160); c.className = 'thumb' + ((M.thumbIdx || 0) === i ? ' sel' : ''); c.onclick = () => { M.thumbIdx = i; render(); }; return c; }))) : null,
           h('label', { class: 'field' }, h('span', { class: 'flabel' }, 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'), h('input', { type: 'range', min: -4, max: 4, step: 0.1, value: M.offset, oninput: (e) => { M.offset = +e.target.value; e.target.previousSibling.textContent = 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'; } })),
           h('button', { class: 'btn big', onclick: renderTo(false) }, icon('play', 18), 'Zrenderuj film 16:9 (' + mmss(M.an.dur) + ')'),
           h('button', { class: 'btn big ghost', onclick: renderTo(true) }, icon('play', 18), 'Zrenderuj Short 9:16 z refrenem'),
+          ...(brand ? [] : [
           h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(S.mk(songId)); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '.jpg', 'share').catch(() => S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '.jpg', 'file')); }) }, icon('copy', 18), 'Miniatura 1280×720'),
-          h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(S.mk(songId), true); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '_short_9x16.jpg', 'share').catch(() => S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '_short_9x16.jpg', 'file')); }) }, icon('copy', 18), 'Miniatura Shorta 9:16 (1080×1920)'),
+          h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(S.mk(songId), true); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '_short_9x16.jpg', 'share').catch(() => S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '_short_9x16.jpg', 'file')); }) }, icon('copy', 18), 'Miniatura Shorta 9:16 (1080×1920)')
+          ]),
           out) : null);
     }
   };
