@@ -202,6 +202,10 @@
         h('button', { class: 'btn', onclick: () => { App.state.ui = { ideaMode: 'surprise' }; UI.go('ideas'); } }, 'Nowy pomysł')));
     }
 
+    /* gotowy utwór z zewnątrz */
+    frag.appendChild(h('section', { class: 'block' }, h('button', { class: 'btn big ghost', onclick: () => App.own.open() }, icon('film', 18), 'Mam gotowy utwór: przygotuj teledysk i publikację'),
+      h('p', { class: 'muted small', style: { marginTop: '8px' } }, 'Wgraj mp3 z Suno. Aplikacja go przesłucha i da tytuł, opis, miniatury 16:9 i 9:16, teledysk i Short.')));
+
     /* plan na dziś */
     if (today) frag.appendChild(h('section', { class: 'block' }, h('h3', null, 'Plan na dziś'),
       h('button', { class: 'row link', onclick: () => UI.go(today.k === 'make' ? 'ideas' : (today.k === 'review' ? 'songs' : 'plan')) },
@@ -234,6 +238,7 @@
     ui.ideaMode = ui.ideaMode || 'own';
     const root = h('div', { class: 'screen' });
     root.appendChild(header('Pomysł', 'Dla kanału ' + p.name));
+    root.appendChild(h('div', { class: 'row-btns pad' }, h('button', { class: 'btn ghost', onclick: () => App.own.open() }, icon('film', 18), 'Mam już gotowy utwór (wgraj mp3)')));
     root.appendChild(h('div', { class: 'seg', role: 'tablist' },
       ['own', 'surprise'].map((m) => h('button', { role: 'tab', 'aria-selected': ui.ideaMode === m ? 'true' : 'false', class: ui.ideaMode === m ? 'on' : '', onclick: () => { ui.ideaMode = m; ui.result = null; UI.render(); } }, m === 'own' ? 'Mam pomysł' : 'Zaskocz mnie'))));
     const out = h('div', { id: 'ideaOut' });
