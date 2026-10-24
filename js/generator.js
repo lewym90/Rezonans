@@ -134,7 +134,7 @@
       'Dodatkowo:',
       '- "structure_tags": lista meta-tagów do wstawienia w tekst (Lyrics) w Suno, dopasowana do budowy oryginału, np. "[Intro: slow riff, no drums]", "[Verse 1: rap, aggressive]", "[Drop]", "[Chorus: gang vocals]" w kolejności utworu (po angielsku, 8 do 14 pozycji);',
       '- "tip": jedno zdanie po polsku, jak ustawić suwaki i że warto wygenerować 2 wersje i wybrać bliższą;',
-      theme ? '- "title" i "lyrics": NOWY, oryginalny tekst na temat: „' + theme + '”, w języku: ' + lang + '. Ta sama rytmika, długość linii i energia co w nagraniu, zupełnie inne słowa. Nagłówki sekcji z meta-tagami z "structure_tags" zgodne z budową, co najmniej 30 różnych linii, limit 4500 znaków. ' + (o.harsh ? '' : 'Zakaz wulgaryzmów. ') : '- "title" i "lyrics": puste ("").',
+      '- "title" i "lyrics": ZAWSZE napisz NOWY, w pełni oryginalny tekst do tego utworu, w języku: ' + lang + '. ' + (theme ? 'Temat wskazany przez użytkownika: „' + theme + '” (rozwiń go własnymi obrazami i historią). ' : 'Użytkownik nie podał tematu: wymyśl własny, spójny z nastrojem, energią i klimatem utworu (z "mood" i "lyric_theme" tylko jako inspiracją gatunkową, nie powtarzaj motywów dosłownie). ') + 'Nie przepisuj ani nie parafrazuj tekstu oryginału. Ta sama rytmika, długość linii, sposób wykonania (rap, śpiew, krzyk) i energia co w nagraniu, ale zupełnie inne słowa i obrazy. Nagłówki sekcji w nawiasach kwadratowych z meta-tagami z "structure_tags", zgodne z budową utworu. Każda zwrotka inna, konkretne obrazy, rymy czyste lub wewnętrzne, refren krótki i chwytliwy, co najmniej 30 różnych linii poza refrenem, limit 4500 znaków, bez instrukcji w nawiasach okrągłych. ' + (o.harsh ? 'Ostre słownictwo dozwolone, jeśli pasuje do stylu. ' : 'Zakaz wulgaryzmów. ') + 'Jeśli utwór jest instrumentalny (wokal: brak), "lyrics" ma zawierać same nagłówki z meta-tagami bez słów.',
       'Zwróć tylko JSON: {"variants":[{"label":"Bardzo podobny","styles":"","exclude":"","weirdness":25,"influence":85},{"label":"Luźniejszy","styles":"","exclude":"","weirdness":40,"influence":65},{"label":"Mocniejszy","styles":"","exclude":"","weirdness":35,"influence":80}],"structure_tags":[""],"tip":"","title":"","lyrics":""}'
     ].join('\n');
   };
@@ -163,6 +163,7 @@
     const sr = J(await App.ai.gemini(G.stylePrompt(dec, f, o, theme), { json: true, temp: 0.6 }));
     let vs = (sr.variants || []).filter((v) => v && v.styles).map((v) => ({ label: String(v.label || 'Wariant'), styles: String(v.styles).trim(), exclude: String(v.exclude || '').trim(), weirdness: Math.round(Number(v.weirdness)) || 40, influence: Math.round(Number(v.influence)) || 70 }));
     if (!vs.length) throw new Error('Gemini nie ułożył stylu. Spróbuj ponownie.');
+    if (!str(sr.lyrics).trim()) { try { const l2 = J(await App.ai.gemini(G.stylePrompt(dec, f, o, theme) + '\nPoprzednio brakowało pola "lyrics". Wypełnij je pełnym tekstem.', { json: true, temp: 0.8 })); sr.lyrics = l2.lyrics; sr.title = sr.title || l2.title; sr.structure_tags = sr.structure_tags || l2.structure_tags; } catch (e) { } }
     let verdict = '';
     try {
       say('3/3 Gemini sprawdza styl na słuch i poprawia…');
@@ -255,7 +256,7 @@
     const o = st.opts, hasKey = App.ai.hasKey();
     root.appendChild(h('p', { class: 'muted' }, 'Wgraj piosenkę, którą lubisz (mp3 z telefonu). Gemini posłucha całego utworu, aplikacja zmierzy tempo, tonację i brzmienie, rozłoży piosenkę na części (rytm, bas, gitary, wokal, miks, budowa) i zamieni to w gotowe pola do Suno. Dostajesz styl, a nie kopię: bez nazw artystów, bez cytowania tekstu.'));
     const fileIn = h('input', { type: 'file', accept: 'audio/*,.mp3,.wav,.m4a', onchange: (e) => { st.rfile = e.target.files[0] || null; rerender(); } });
-    const theme = h('textarea', { rows: 2, placeholder: 'Opcjonalnie: temat NOWEGO tekstu, np. trening o piątej rano i pokonywanie własnych słabości', value: st.rtheme, oninput: (e) => { st.rtheme = e.target.value; } });
+    const theme = h('textarea', { rows: 2, placeholder: 'Twój pomysł na temat tekstu (opcjonalnie), np. trening o piątej rano. Bez pomysłu Gemini wymyśli własny tekst.', value: st.rtheme, oninput: (e) => { st.rtheme = e.target.value; } });
     const seg = (label, list, key) => h('div', { class: 'stack' }, h('span', { class: 'flabel' }, label), h('div', { class: 'row-btns' }, list.map((x) => K.chip(x[1], o[key] === x[0], () => { o[key] = x[0]; rerender(); }))));
     const go = async () => {
       if (st.busy) return; if (!st.rfile) { toast('Najpierw wybierz plik z piosenką.'); return; }
@@ -266,8 +267,8 @@
     };
     root.appendChild(h('div', { class: 'compose' },
       h('label', { class: 'btn big ghost filebtn' }, icon('plus', 18), st.rfile ? 'Wybrany: ' + st.rfile.name : 'Wybierz plik z piosenką', fileIn),
-      theme, seg('Język nowego tekstu', LANG, 'lang'),
-      hasKey ? h('button', { class: 'btn big', disabled: st.busy ? 'true' : null, onclick: go }, icon('spark', 18), st.busy ? (st.status || 'Analizuję…') : 'Przeanalizuj i przygotuj dla Suno')
+      theme, seg('Język nowego tekstu', [['auto', 'Jak w piosence'], ['pl', 'Polski'], ['en', 'Angielski']], 'lang'),
+      hasKey ? h('button', { class: 'btn big', disabled: st.busy ? 'true' : null, onclick: go }, icon('spark', 18), st.busy ? (st.status || 'Analizuję…') : 'Analizuj dla Suno (styl + nowy tekst)')
         : h('div', { class: 'warnbox' }, h('p', null, 'Ta funkcja wymaga klucza Gemini (Ustawienia → Klucz Gemini), bo to Gemini słucha nagrania.'))));
     root.appendChild(h('p', { class: 'muted small' }, 'Plik zostaje na telefonie. Do Gemini idzie jednorazowo cały utwór (do 5 minut), bez zapisywania. Analiza to 3 zapytania i trwa do minuty.'));
     if (st.err) root.appendChild(h('div', { class: 'warnbox' }, h('p', null, st.err)));
@@ -278,23 +279,26 @@
       const sec = (title, ...rows) => h('div', { class: 'okbox stack' }, h('b', null, title), ...rows);
       const dr = d.drums || {}, bs = d.bass || {}, gt = d.guitars || {}, vc = d.vocals || {}, mx = d.mix || {}, tp = d.tempo || {}, ky = d.key || {};
       root.appendChild(h('h3', { class: 'sec' }, 'Pełna dekompozycja „' + r.name + '”'));
-      root.appendChild(sec('Gatunek i tempo', row('Gatunek', [d.genre, d.subgenre].filter(Boolean).join(' / ')), row('Korzenie brzmienia', d.lineage), row('Epoka', d.era), row('Tempo', (tp.bpm || f.bpm) + ' BPM, ' + [tp.feel, tp.groove].filter(Boolean).join(', ') + ' (algorytm: ' + f.bpm + ')'), row('Tonacja', [str(ky.tonic), str(ky.mode)].filter(Boolean).join(' ') + (f.key ? ' (pomiar: ' + f.key + ')' : '')), row('Harmonia', ky.harmony)));
-      root.appendChild(sec('Rytm i perkusja', row('Brzmienie zestawu', dr.kit_sound), row('Wzór', dr.pattern), row('Dźwięki', dr.sounds)));
-      root.appendChild(sec('Bas', row('Rodzaj', bs.type), row('Charakter', bs.character), row('Rola', bs.role)));
-      root.appendChild(sec('Gitary, klawisze, efekty', row('Gitary rytmiczne', gt.rhythm), row('Gitary prowadzące', gt.lead), row('Brzmienie gitar', gt.tone), row('Klawisze i syntezatory', d.keys_synths), row('Efekty i sample', d.fx_samples)));
-      root.appendChild(sec('Wokal', row('Głos', vc.lead), row('Sposób wykonania', vc.delivery), row('Podwojenia i chórki', vc.doubles), row('Efekty', vc.effects), row('Język', vc.language)));
-      root.appendChild(sec('Produkcja i miks', row('Przestrzeń', mx.space), row('Dół', mx.low_end), row('Góra', mx.highs), row('Głośność i mastering', mx.loudness), row('Pomiar', f.bands ? 'środek ciężkości ' + f.centroid + ' Hz, crest ' + f.crest + ' dB, stereo ' + f.stereo : '')));
-      root.appendChild(sec('Budowa utworu', ...(d.arrangement || []).map((x) => h('p', null, h('b', null, str(x.time) + ' ' + str(x.section) + ': '), str(x.what))), row('Nastrój', [d.mood, d.energy].filter(Boolean).join('; ')), row('Temat tekstu', d.lyric_theme)));
-      if (d.signature && d.signature.length) root.appendChild(sec('Cechy, które muszą być w każdym podobnym utworze', ...[].concat(d.signature).map((x, i) => h('p', null, (i + 1) + '. ' + str(x)))));
+      const grid = h('div', { class: 'dgrid' }); root.appendChild(grid);
+      grid.appendChild(sec('Gatunek i tempo', row('Gatunek', [d.genre, d.subgenre].filter(Boolean).join(' / ')), row('Korzenie brzmienia', d.lineage), row('Epoka', d.era), row('Tempo', (tp.bpm || f.bpm) + ' BPM, ' + [tp.feel, tp.groove].filter(Boolean).join(', ') + ' (algorytm: ' + f.bpm + ')'), row('Tonacja', [str(ky.tonic), str(ky.mode)].filter(Boolean).join(' ') + (f.key ? ' (pomiar: ' + f.key + ')' : '')), row('Harmonia', ky.harmony)));
+      grid.appendChild(sec('Rytm i perkusja', row('Brzmienie zestawu', dr.kit_sound), row('Wzór', dr.pattern), row('Dźwięki', dr.sounds)));
+      grid.appendChild(sec('Bas', row('Rodzaj', bs.type), row('Charakter', bs.character), row('Rola', bs.role)));
+      grid.appendChild(sec('Gitary, klawisze, efekty', row('Gitary rytmiczne', gt.rhythm), row('Gitary prowadzące', gt.lead), row('Brzmienie gitar', gt.tone), row('Klawisze i syntezatory', d.keys_synths), row('Efekty i sample', d.fx_samples)));
+      grid.appendChild(sec('Wokal', row('Głos', vc.lead), row('Sposób wykonania', vc.delivery), row('Podwojenia i chórki', vc.doubles), row('Efekty', vc.effects), row('Język', vc.language)));
+      grid.appendChild(sec('Produkcja i miks', row('Przestrzeń', mx.space), row('Dół', mx.low_end), row('Góra', mx.highs), row('Głośność i mastering', mx.loudness), row('Pomiar', f.bands ? 'środek ciężkości ' + f.centroid + ' Hz, crest ' + f.crest + ' dB, stereo ' + f.stereo : '')));
+      grid.appendChild(sec('Budowa utworu', ...(d.arrangement || []).map((x) => h('p', null, h('b', null, str(x.time) + ' ' + str(x.section) + ': '), str(x.what))), row('Nastrój', [d.mood, d.energy].filter(Boolean).join('; ')), row('Temat tekstu', d.lyric_theme)));
+      if (d.signature && d.signature.length) grid.appendChild(sec('Cechy, które muszą być w każdym podobnym utworze', ...[].concat(d.signature).map((x, i) => h('p', null, (i + 1) + '. ' + str(x)))));
       root.appendChild(h('h3', { class: 'sec' }, 'Wpisz w Suno (Create → Custom)'));
       root.appendChild(h('p', { class: 'muted small' }, 'Zacznij od „Bardzo podobny”. Suno za każdym razem losuje, więc wygeneruj dwie wersje i wybierz bliższą. Pole Styles wklejasz całe, kolejność haseł ma znaczenie.'));
       if (r.verdict) root.appendChild(h('div', { class: 'okbox' }, h('b', null, 'Sprawdzenie na słuch: '), r.verdict));
-      r.variants.forEach((v) => root.appendChild(h('div', { class: 'stack' },
+      const vgrid = h('div', { class: 'dgrid' }); root.appendChild(vgrid);
+      r.variants.forEach((v) => vgrid.appendChild(h('div', { class: 'stack' },
         h('h4', null, v.label), fld('Styl (Styles)', v.styles, 6, h('span', { class: 'count' }, v.styles.length + ' / 1000')), v.exclude ? fld('Wyklucz (Exclude styles)', v.exclude, 2) : null,
         h('p', { class: 'muted small' }, 'Suwaki: Weirdness ' + v.weirdness + '%, Style Influence ' + v.influence + '%'))));
       if (r.tags && r.tags.length) root.appendChild(fld('Meta-tagi budowy do tekstu (Lyrics)', r.tags.join('\n'), 8));
-      if (r.lyrics) { root.appendChild(h('h3', { class: 'sec' }, 'Nowy tekst w tym klimacie')); root.appendChild(fld('Tytuł (Song Title)', r.title, 1)); root.appendChild(fld('Tekst (Lyrics)', r.lyrics, 14, h('span', { class: 'count' }, r.lyrics.length + ' / 5000'))); }
+      if (r.lyrics) { root.appendChild(h('h3', { class: 'sec' }, 'Nowy tekst do tego utworu (wymyślony od zera)')); root.appendChild(fld('Tytuł (Song Title)', r.title, 1)); root.appendChild(fld('Tekst (Lyrics)', r.lyrics, 14, h('span', { class: 'count' }, r.lyrics.length + ' / 5000'))); }
       if (r.tip) root.appendChild(h('div', { class: 'okbox' }, r.tip));
+      root.appendChild(h('button', { class: 'btn big ghost', onclick: () => UI.copy('Title: ' + r.title + '\n\nStyles:\n' + r.variants[0].styles + '\n\nExclude styles:\n' + r.variants[0].exclude + '\n\nLyrics:\n' + r.lyrics + '\n\nWeirdness: ' + r.variants[0].weirdness + '%  ·  Style Influence: ' + r.variants[0].influence + '%', 'Wszystko skopiowane') }, icon('copy', 18), 'Kopiuj wszystko (wariant 1 + tekst)'));
       root.appendChild(h('a', { class: 'btn big', href: 'https://suno.com/create', target: '_blank', rel: 'noopener' }, icon('link', 18), 'Otwórz Suno'));
       /* pętla poprawek */
       root.appendChild(h('h3', { class: 'sec' }, 'Nadal nie brzmi tak samo?'));

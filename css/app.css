@@ -208,3 +208,20 @@ input.secret{-webkit-text-security:disc;text-security:disc}
 
 .thumbs .thumb.sel{outline:3px solid var(--accent,#e6b450);outline-offset:-3px}
 .thumbs .thumb{cursor:pointer}
+
+/* tablet i laptop: szersza kolumna, siatki zamiast długiej listy */
+.dgrid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); margin: 0 20px; } .dgrid > * { min-width: 0; }
+@media (min-width: 720px) {
+  #app { max-width: 820px; } #tabbar { width: min(calc(100% - 48px), 640px); }
+  .sheet { width: min(100%, 720px); } .sub { max-width: 48ch; } .dtag { max-width: 48ch; }
+  .dgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .thumbs { grid-template-columns: repeat(4, 1fr); }
+  .compose, .seg { margin-left: 28px; margin-right: 28px; } .hdr { padding: 24px 28px 16px; } .dgrid { margin: 0 28px; }
+}
+@media (min-width: 1100px) {
+  #app { max-width: 1120px; } #tabbar { width: min(calc(100% - 48px), 720px); }
+  .dgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .sheet-wrap { align-items: center; } .sheet { border-radius: 30px; max-height: 88vh; width: min(100%, 780px); }
+  .thumbs { grid-template-columns: repeat(6, 1fr); } h1 { font-size: 56px; }
+}
+.screen > :is(.okbox, .warnbox, .field, a.btn, button.btn, label.btn, p.muted, .cp, h4) { margin-left: 20px; margin-right: 20px; }
+.screen > h4 { margin-top: 6px; }
+@media (min-width: 720px) { .compose, .seg, .dgrid { margin-left: 20px; margin-right: 20px; } .hdr { padding: 24px 20px 16px; } }
