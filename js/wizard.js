@@ -38,7 +38,7 @@
         body = h('div', { class: 'stack' },
           ol(['Otwórz Suno i wejdź w Create, potem w tryb Custom.', 'Wklej poniższe trzy rzeczy do trzech pól: tytuł, styl i tekst. Skopiuj każdą kropką obok nazwy.', 'Kliknij Create. Suno robi dwie wersje. Posłuchaj obu na słuchawkach i wybierz lepszą.']),
           h('a', { class: 'btn big', href: 'https://suno.com/create', target: '_blank', rel: 'noopener' }, icon('link', 18), 'Otwórz Suno'),
-          field('Tytuł (Song Title)', s.title || ''), field('Styl (Styles)', s.style || '', 5), field('Tekst (Lyrics)', s.lyrics || '', 12),
+          field('Tytuł (Song Title)', s.title || ''), field('Styl (Styles)', s.style || '', 6), s.exclude ? field('Wyklucz (Exclude styles)', s.exclude, 2) : null, s.weirdness ? h('div', { class: 'okbox' }, h('b', null, 'Suwaki w Suno: '), 'Weirdness ' + s.weirdness + '%, Style Influence ' + s.influence + '%.' + (s.tip ? ' ' + s.tip : '')) : null, field('Tekst (Lyrics)', s.lyrics || '', 14),
           empty ? h('div', { class: 'warnbox' }, h('p', null, icon('shield', 18), 'Zwrotki są puste. Suno powtórzy wtedy w kółko refren. Wróć do pomysłu i kliknij „Napisz pełny tekst”.')) : null,
           h('p', { class: 'muted small' }, 'Gdy masz wybraną wersję, kliknij Dalej.'));
       } else if (cur === 2) {

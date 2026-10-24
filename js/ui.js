@@ -288,7 +288,8 @@
   }
 
   /* ---------- kreator Suno ---------- */
-  function openBuilder(idea) {
+  function openBuilder(idea, forceOld) {
+    if (!forceOld && AI.hasKey()) return openBuilderAI(idea);
     const p = App.profile();
     const st = { title: idea.title, variant: idea.branch && E.variantOf(p, idea.branch) ? idea.branch : (p.styleVariants[0] || {}).id, moods: [], clean: false,
       lyrics: E.skeleton(p, idea), style: '' };
@@ -335,6 +336,43 @@
         } }, 'Zapisz utwór'));
     });
     if (AI.hasKey() && /\[(Verse 1)\]\s*\n\s*\n/.test(st.lyrics)) setTimeout(writeLyrics, 150);
+  }
+
+  /* kreator z Gemini: od razu pełny pakiet (style, wykluczenia, suwaki, cały tekst) */
+  function openBuilderAI(idea) {
+    const p = App.profile(), st = { title: idea.title, pack: null, vi: 0, busy: false, err: '', clean: false };
+    const run = async () => {
+      st.busy = true; st.err = ''; if (st.rerender) st.rerender();
+      try { st.pack = await App.gen.channelPack(p, Object.assign({}, idea, { title: st.title }), { clean: st.clean }); st.title = st.pack.title || st.title; st.vi = 0; }
+      catch (e) { st.err = e.message || 'Błąd'; }
+      st.busy = false; if (st.rerender) st.rerender();
+    };
+    st.rerender = openSheet('Pakiet dla Suno', (render) => {
+      const pk = st.pack, v = pk ? pk.variants[Math.min(st.vi, pk.variants.length - 1)] : null;
+      const fld = (label, val, rows, extra) => h('label', { class: 'field' }, h('span', { class: 'flabel' }, label, extra || null, copyBtn(() => val, label)), h('textarea', { rows, readonly: 'true', value: val }));
+      if (st.busy) return h('div', { class: 'stack' }, h('div', { class: 'okbox' }, h('b', null, 'Gemini pisze pełny pakiet: '), 'styl w trzech wariantach, wykluczenia, suwaki i cały tekst ze zwrotkami. Zajmuje to od kilkunastu sekund do minuty.'));
+      if (!pk) return h('div', { class: 'stack' }, st.err ? h('div', { class: 'warnbox' }, h('p', null, st.err)) : null,
+        h('button', { class: 'btn big', onclick: run }, icon('spark', 18), 'Wygeneruj pakiet'),
+        h('button', { class: 'btn ghost', onclick: () => { closeSheet(); setTimeout(() => openBuilder(idea, true), 280); } }, 'Użyj prostego szkicu (bez Gemini)'));
+      const all = () => 'Title: ' + st.title + '\n\nStyles:\n' + v.styles + '\n\nExclude styles:\n' + v.exclude + '\n\nLyrics:\n' + pk.lyrics + '\n\nWeirdness: ' + v.weirdness + '%  ·  Style Influence: ' + v.influence + '%';
+      const found = E.scan(pk.lyrics);
+      return h('div', { class: 'stack' },
+        h('p', { class: 'muted small' }, 'W Suno wybierz Create → Custom i wklej pola poniżej (kropka obok nazwy kopiuje). Zacznij od wariantu „Główny”.'),
+        field('Tytuł (Song Title)', h('input', { value: st.title, oninput: (e) => { st.title = e.target.value; } }), copyBtn(() => st.title, 'Tytuł')),
+        h('div', { class: 'chips' }, pk.variants.map((x, i) => chip(x.label, i === st.vi, () => { st.vi = i; render(); }))),
+        fld('Styl (Styles)', v.styles, 6, h('span', { class: 'count' }, v.styles.length + ' / 1000')),
+        fld('Wyklucz (Exclude styles)', v.exclude, 2),
+        h('div', { class: 'okbox' }, h('b', null, 'Suwaki w Suno: '), 'Weirdness ' + v.weirdness + '%, Style Influence ' + v.influence + '%.' + (pk.tip ? ' ' + pk.tip : '')),
+        fld('Tekst (Lyrics)', pk.lyrics, 16, h('span', { class: 'count' }, pk.lyrics.length + ' / 5000')),
+        found.length ? h('div', { class: 'warnbox' }, h('p', null, icon('shield', 18), 'Wulgaryzmy w ' + found.length + ' lini. Mogą ograniczyć reklamy.'), h('button', { class: 'btn ghost sm', onclick: () => { pk.lyrics = E.clean(pk.lyrics); render(); toast('Zamieniono na czystą wersję'); } }, 'Zamień na czystą wersję')) : null,
+        h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: st.clean, onchange: (e) => { st.clean = e.target.checked; } }), h('span', null, 'Czysta wersja bez wulgaryzmów (przy kolejnym generowaniu)')),
+        h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: run }, icon('refresh', 18), 'Wygeneruj ponownie'), h('button', { class: 'btn ghost', onclick: () => copy(all(), 'Wszystko skopiowane') }, icon('copy', 18), 'Kopiuj wszystko')),
+        h('button', { class: 'btn big', onclick: () => {
+          const s = { id: App.uid('song'), profileId: p.id, title: st.title, premise: idea.premise, variantId: idea.branch || (p.styleVariants[0] || {}).id, styleName: (E.variantOf(p, idea.branch) || {}).name || v.styles.split(',')[0], styleSig: v.styles.split(',').slice(0, 5).map((x) => x.trim()), style: v.styles, exclude: v.exclude, weirdness: v.weirdness, influence: v.influence, tip: pk.tip, lyrics: pk.lyrics, symbol: idea.symbol, scenes: idea.scenes || [], status: 'suno', created: Date.now(), checks: {}, results: {} };
+          App.state.songs.push(s); s.step = 1; App.save(); closeSheet(); App.state.ui = {}; UI.go('songs'); setTimeout(() => App.wizard.open(s.id, 1), 260);
+        } }, 'Zapisz utwór i prowadź dalej'));
+    });
+    setTimeout(run, 60);
   }
 
   /* ================= UTWORY ================= */

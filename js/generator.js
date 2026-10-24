@@ -195,6 +195,43 @@
     return { match: [].concat(c.match || []).map(str), diff: [].concat(c.diff || []).map(str), styles: str(c.styles).slice(0, 995), exclude: str(c.exclude), weirdness: Math.round(Number(c.weirdness)) || v1.weirdness, influence: Math.round(Number(c.influence)) || v1.influence, advice: str(c.advice) };
   };
 
+  /* ---------- pełny pakiet Suno dla kanału (z pomysłu albo „zaskocz mnie”) ---------- */
+  G.channelPrompt = function (p, idea, o, avoid) {
+    const pl = p.lang === 'pl', E = App.engine, songs = App.songsOf(p.id).map((s) => s.title).concat(p.dna.used || []).filter(Boolean);
+    const seed = pl
+      ? 'Materiał na refren (skróć do 4 mocnych linii): hasło „' + (idea.shout || '') + '”, pomysły: ' + (idea.pairs || []).join('; ') + '; linia zamykająca: „' + (idea.closing || idea.title) + '”.'
+      : 'Chorus seed (max 4 short lines): “' + (idea.hook || idea.title) + '” / “' + (idea.answer || '') + '”.';
+    const refs = (p.styleVariants || []).map((v) => '- ' + v.name + ': ' + v.style).join('\n');
+    return [
+      'Jesteś producentem muzycznym i ekspertem od promptów do Suno (v4.5 i nowsze). Przygotuj KOMPLET pól do trybu Custom w Suno dla nowego utworu kanału „' + p.name + '”.',
+      'DNA kanału: gatunek: ' + p.dna.genre + '. Wokal: ' + p.dna.voice + '. Motywy: ' + (p.dna.themes || []).join(', ') + '. Symbole: ' + (p.dna.symbols || []).join(', ') + '.',
+      'Wzorce brzmienia kanału (punkt wyjścia, możesz je rozwinąć i zmienić pod ten utwór, ale zostań w klimacie kanału):\n' + refs,
+      'Pomysł na utwór: tytuł roboczy „' + idea.title + '”. Założenie: ' + (idea.premise || '') + '. Sceny: ' + (idea.scenes || []).join('; ') + '. ' + seed,
+      songs.length ? 'Nie powtarzaj tytułów ani głównych motywów z już wydanych: ' + songs.slice(0, 25).join('; ') + '.' : '',
+      avoid && avoid.length ? 'Brzmienie ostatnich utworów (zrób coś odmiennego w jednym lub dwóch elementach: tempo, instrument wiodący, podgatunek): ' + avoid.slice(0, 4).map((a) => [].concat(a).join(', ')).join(' | ') + '.' : '',
+      'Język tekstu: ' + (pl ? 'polski' : 'angielski') + '. ' + (o.clean ? 'Zakaz wulgaryzmów i przekleństw.' : 'Wulgaryzmy ogranicz do minimum, tylko gdy naprawdę pasują.'),
+      'REGUŁY POLA STYLES (kluczowe): po angielsku, hasła rozdzielone przecinkami, bez nazw artystów i zespołów; Suno najmocniej słucha PIERWSZYCH haseł, więc zacznij od gatunku i podgatunku, potem tempo w BPM i feel, potem 3 najważniejsze cechy, potem wokal (płeć, barwa, sposób), perkusja, bas, gitary/klawisze/orkiestra, na końcu miks i produkcja; konkretne, powszechne terminy zamiast opisów; bez sprzecznych haseł. Wariant 1 „Główny”: 750 do 950 znaków. Wariant 2 „Luźniejszy”: ok. 350 znaków, same najważniejsze cechy. Wariant 3 „Mocniejszy”: jak pierwszy, ale cięższy, głośniejszy, bardziej agresywny.',
+      '"exclude": po angielsku 6 do 12 haseł tego, co zepsułoby brzmienie kanału (np. gatunki i wokale, których tu nie ma).',
+      '"weirdness" i "influence" to proponowane suwaki Suno 0-100 (klasyczne, ciężkie brzmienie: weirdness niżej, style influence wyżej).',
+      '"lyrics": KOMPLETNY tekst do wklejenia w Suno, nagłówki sekcji w nawiasach kwadratowych z krótkimi meta-tagami po angielsku, np. [Intro: war drums, no vocals], [Verse 1: aggressive rap], [Pre-Chorus: rising tension], [Chorus: gang vocals, anthemic], [Drop], [Bridge], [Final Chorus], [Outro]. Struktura: Intro (1-2 linie), Verse 1 (8 linii), Pre-Chorus (2-4), Chorus (4 krótkie, chwytliwe linie), Verse 2 (8), Chorus, Bridge (4), Verse 3 (4-8, kulminacja), Final Chorus (z jedną zmienioną linią), Outro. Każda zwrotka INNA: Verse 1 pokazuje sytuację i konkretne obrazy, Verse 2 rozwija historię i napięcie, Bridge zmienia perspektywę, Verse 3 domyka przemianę. Co najmniej 30 różnych linii poza refrenem, konkrety (rzeczy, miejsca, czynności, liczby), jedna spójna metafora, rymy czyste lub wewnętrzne, linie 8-12 sylab. Zakaz pustych sekcji, powtarzania tej samej linii poza refrenem i instrukcji w nawiasach okrągłych. Limit 4500 znaków.',
+      '"title": tytuł utworu (do 6 słów) w języku tekstu; możesz poprawić tytuł roboczy. "tip": jedno zdanie po polsku (jak ustawić suwaki, wygeneruj dwie wersje i wybierz lepszą).',
+      'Zwróć tylko JSON: {"title":"","variants":[{"label":"Główny","styles":"","exclude":"","weirdness":30,"influence":80},{"label":"Luźniejszy","styles":"","exclude":"","weirdness":40,"influence":65},{"label":"Mocniejszy","styles":"","exclude":"","weirdness":35,"influence":80}],"lyrics":"","tip":""}'
+    ].filter(Boolean).join('\n');
+  };
+  G.channelPack = async function (p, idea, o) {
+    const prompt = G.channelPrompt(p, idea, o || {}, App.engine.styleAvoid(p));
+    const parse = async (extra) => {
+      const r = JSON.parse(clean(await App.ai.gemini(prompt + (extra || ''), { json: true, temp: 0.95 }))), x = Array.isArray(r) ? r[0] : r;
+      const vs = (x.variants || []).filter((v) => v && v.styles).map((v) => ({ label: String(v.label || 'Wariant'), styles: String(v.styles).trim().slice(0, 995), exclude: str(v.exclude).trim(), weirdness: Math.round(Number(v.weirdness)) || 35, influence: Math.round(Number(v.influence)) || 75 }));
+      return { title: str(x.title).trim(), variants: vs, lyrics: str(x.lyrics).trim(), tip: str(x.tip).trim() };
+    };
+    let r = await parse();
+    const bad = (q) => !q.lyrics || !App.engine.lyricsQuality(q.lyrics).ok;
+    for (let i = 0; i < 2 && bad(r); i++) { const q = App.engine.lyricsQuality(r.lyrics); r = await parse('\nPoprzednia wersja miała za mało różnych linii w zwrotkach (' + q.unique + ' różnych, ' + q.verseLines + ' w zwrotkach). Napisz od nowa: pełne, różne zwrotki, co najmniej 30 różnych linii poza refrenem.'); }
+    if (!r.variants.length || !r.lyrics) throw new Error('Gemini zwrócił niepełny pakiet. Kliknij „Wygeneruj ponownie”.');
+    return r;
+  };
+
   G.view = function () {
     const UI = App.ui, h = UI.h, icon = UI.icon, K = UI.kit, toast = UI.toast;
     const st = (App.state.gen = App.state.gen || { idea: '', opts: Object.assign({}, OPT), busy: false, err: '', cur: null }); st.mode = st.mode || 'idea'; if (!st.rtheme) st.rtheme = '';
