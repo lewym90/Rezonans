@@ -593,7 +593,7 @@
       return h('div', { class: 'stack' },
         embedded ? null : h('p', { class: 'muted' }, 'Wczytaj mp3 z Suno. Aplikacja znajdzie tempo i refren, ułoży cięcia w rytm i dopasuje napisy. Wideo powstaje w tej przeglądarce, za darmo.'),
         h('label', { class: 'btn big filebtn' }, icon('plus', 18), hasAudio ? 'Zmień plik mp3' : 'Wybierz plik mp3', fileIn),
-        h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Styl teledysku'), h('div', { class: 'row-btns' }, [['brand', 'Marka: jedno tło, logo w rytm basu'], ['scenes', 'Sceny z tekstu']].map((x) => App.ui.kit.chip(x[1], S.mode(s) === x[0], () => { s.look = x[0]; M.prepared = false; M.autoStarted = false; App.save(); render(); })))),
+        null,
         M.status ? h('p', { class: 'hint' }, M.status) : null,
         hasAudio ? h('div', { class: 'stack' },
           h('p', { class: 'muted small' }, 'Czas ' + mmss(M.an.dur) + ' · tempo ok. ' + Math.round(M.an.bpm) + ' bpm · Short od ' + mmss(S.shortWindow(songId).start) + (M.chorusText && s.chorusAuto !== false ? ' (refren z tekstu)' : s.chorusAuto === false ? ' (ustawiony ręcznie)' : ' (refren z dźwięku)') + ' · napisy: ' + (M.align || '—')),

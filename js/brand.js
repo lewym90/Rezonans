@@ -7,7 +7,7 @@
   const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
   const font = (px, w) => (w || 800) + ' ' + px + 'px "Bricolage Grotesque", system-ui, -apple-system, sans-serif';
 
-  S.mode = (s) => (s && s.look) || 'brand';
+  S.mode = () => 'brand';
 
   /* ---------- logo ---------- */
   const logos = {};
@@ -81,10 +81,11 @@
       // tło: wolny najazd, uderzenie basu lekko je „kopie”, drżenie kadru
       const zoom = 1.07 + 0.05 * Math.min(1, rel / Math.max(1, total)) + 0.03 * k, sh = S1 * 0.006 * k;
       cover(ctx, R.hero, W, H, zoom, Math.sin(t * 53) * sh, Math.cos(t * 61) * sh);
-      ctx.fillStyle = 'rgba(0,0,0,' + (0.36 - 0.1 * Math.min(1, k)) + ')'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(0,0,0,' + (0.22 - 0.1 * Math.min(1, k)) + ')'; ctx.fillRect(0, 0, W, H);
       ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = hexA(pal.accent2, 0.22); ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over';
       const vg = ctx.createRadialGradient(W / 2, H / 2, S1 * 0.3, W / 2, H / 2, Math.max(W, H) * 0.78); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.7)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
-      const cx = W / 2, cy = vert ? H * 0.34 : H * 0.4, box = vert ? W * 0.64 : H * 0.58, R0 = box * 0.46;
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = hexA(pal.accent2, 0.3 * Math.min(1, k) * Math.min(1, k)); ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over';
+      const cx = W / 2, cy = vert ? H * 0.34 : H * 0.4, box = vert ? W * 0.46 : H * 0.4, R0 = box * 0.46;
       // poświata za logo
       const gl = ctx.createRadialGradient(cx, cy, R0 * 0.2, cx, cy, R0 * (1.7 + 0.5 * k)); gl.addColorStop(0, hexA(pal.accent, 0.16 + 0.42 * Math.min(1, k) + 0.1 * b)); gl.addColorStop(1, hexA(pal.accent, 0));
       ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gl; ctx.fillRect(0, 0, W, H);
