@@ -165,8 +165,8 @@
   };
   function b64(ab) { const u = new Uint8Array(ab); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
   /* fragment nagrania jako WAV 16 kHz mono (base64): krótkie kawałki dają dokładne czasy */
-  S.wavChunk = function (buf, t0, t1) {
-    const sr = buf.sampleRate, a = buf.getChannelData(0), b = buf.numberOfChannels > 1 ? buf.getChannelData(1) : a, R = 16000, n = Math.max(1, Math.floor((t1 - t0) * R)), dv = new DataView(new ArrayBuffer(44 + n * 2));
+  S.wavChunk = function (buf, t0, t1, hiq) {
+    const sr = buf.sampleRate, a = buf.getChannelData(0), b = buf.numberOfChannels > 1 ? buf.getChannelData(1) : a, R = hiq ? Math.max(16000, Math.min(24000, Math.floor(11e6 / (2 * Math.max(1, t1 - t0))))) : 16000, n = Math.max(1, Math.floor((t1 - t0) * R)), dv = new DataView(new ArrayBuffer(44 + n * 2));
     const w = (o, str) => { for (let i = 0; i < str.length; i++) dv.setUint8(o + i, str.charCodeAt(i)); };
     w(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true); dv.setUint32(24, R, true); dv.setUint32(28, R * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, n * 2, true);
     const ratio = sr / R;

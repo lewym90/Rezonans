@@ -109,12 +109,27 @@
     '- wokal zaczyna się ok. ' + f.vocalStart + ' s, najbardziej powtarzalny fragment (prawdopodobny refren) ok. ' + f.chorus + ' s'
   ].join('\n');
 
-  const SHAPE_DECOMP = '{"genre":"","subgenre":"","lineage":"z jakich nurtów i epok wyrasta to brzmienie, bez nazw artystów","era":"dekada/era produkcji","tempo":{"bpm":0,"feel":"half-time/normal/double","groove":"prosty/swing/shuffle/synkopowany"},"key":{"tonic":"","mode":"","harmony":"typowe progresje, np. mollowe i-VI-III-VII, power chordy, pedał basowy"},"drums":{"kit_sound":"np. akustyczny ciężki, elektroniczny 808, sample, industrial","pattern":"opis wzoru: stopa, werbel, hi-hat, double bass, blast, fill-e","sounds":"charakter brzmienia werbla, stopy, talerzy"},"bass":{"type":"gitara basowa, syntezator, 808, sub","character":"czysty/przesterowany/zniekształcony, długość nut","role":"podąża za stopą, linia melodyczna, pedał"},"guitars":{"present":true,"rhythm":"","lead":"","tone":"gain, strój (np. drop), brzmienie, palm mute"},"keys_synths":"pady, arpeggia, pianino, organy, orkiestra, chóry, leady","fx_samples":"efekty, sample, ambient, vinyl, riser","vocals":{"lead":"płeć, wiek, barwa, rejestr, siła","delivery":"śpiew/rap/scream/growl/szept, flow, rytmika, melodyka","doubles":"podwojenia, chórki, adlibs, harmonie","effects":"autotune, vocoder, reverb, delay, dystorsja","language":"","energy":""},"mix":{"space":"suchy/duży pogłos/stereo","low_end":"","highs":"","loudness":"mastering, kompresja, saturacja"},"arrangement":[{"time":"0:00","section":"intro/verse/pre/chorus/bridge/drop/outro","what":"co się dzieje (instrumenty wchodzą, wychodzą, zmiana energii)"}],"hooks":"co jest najbardziej charakterystyczne i zapamiętywalne w brzmieniu","mood":"","energy":"","lyric_theme":"temat bez cytatów","signature":["5 do 8 najważniejszych cech, które MUSZĄ być w każdym podobnym utworze, uszeregowane od najważniejszej"]}';
+  const SHAPE_DECOMP = '{"genre":"","subgenre":"","genre_evidence":"3 konkretne dźwięki, które o tym przesądzają","lineage":"z jakich nurtów i epok wyrasta to brzmienie, bez nazw artystów","era":"dekada/era produkcji","tempo":{"bpm":0,"feel":"half-time/normal/double","groove":"prosty/swing/shuffle/synkopowany"},"key":{"tonic":"","mode":"","harmony":"progresja akordów i charakter harmonii, np. mollowa pętla, jedna nuta pedałowa, soulowe akordy, power chordy"},"drums":{"kit_sound":"np. akustyczny ciężki, elektroniczny 808, sample, industrial","pattern":"opis wzoru: stopa, werbel, hi-hat, double bass, blast, fill-e","sounds":"charakter brzmienia werbla, stopy, talerzy"},"bass":{"type":"gitara basowa, syntezator, 808, sub","character":"czysty/przesterowany/zniekształcony, długość nut","role":"podąża za stopą, linia melodyczna, pedał"},"guitars":{"present":true,"rhythm":"","lead":"","tone":"gain, strój (np. drop), brzmienie, palm mute"},"keys_synths":"pady, arpeggia, pianino, organy, orkiestra, chóry, leady","fx_samples":"efekty, sample, ambient, vinyl, riser","vocals":{"lead":"płeć, wiek, barwa, rejestr, siła","delivery":"śpiew/rap/scream/growl/szept, flow, rytmika, melodyka","doubles":"podwojenia, chórki, adlibs, harmonie","effects":"autotune, vocoder, reverb, delay, dystorsja","language":"","energy":""},"mix":{"space":"suchy/duży pogłos/stereo","low_end":"","highs":"","loudness":"mastering, kompresja, saturacja"},"arrangement":[{"time":"0:00","section":"intro/verse/pre/chorus/bridge/drop/outro","what":"co się dzieje (instrumenty wchodzą, wychodzą, zmiana energii)"}],"hooks":"co jest najbardziej charakterystyczne i zapamiętywalne w brzmieniu","mood":"","energy":"","lyric_theme":"temat bez cytatów","signature":["5 do 8 najważniejszych cech, które MUSZĄ być w każdym podobnym utworze, uszeregowane od najważniejszej"]}';
 
-  G.decompPrompt = function (an, f) {
+  /* krok 0: protokół odsłuchu. Gemini najpierw opisuje, co SŁYCHAĆ, i wskazuje dowody; dopiero potem nazywa gatunek */
+  G.listenPrompt = function (an, f, hint) {
+    return [
+      'Jesteś producentem i inżynierem dźwięku z 20-letnim doświadczeniem w wielu gatunkach (hip-hop, trap, drill, pop, rock, metal, elektronika, R&B, muzyka filmowa). Słuchasz nagrania uważnie, od początku do końca, i robisz PROTOKÓŁ ODSŁUCHU. Na tym etapie NIE zgadujesz gatunku z nastroju: opisujesz wyłącznie dźwięki, które realnie słyszysz.',
+      G.facts(f),
+      hint ? 'WSKAZÓWKA UŻYTKOWNIKA (traktuj jako prawdę, jeśli nie jest jawnie sprzeczna z nagraniem): ' + hint : '',
+      'Zasady: nie podawaj nazw artystów ani tytułów. Nie cytuj tekstu. Nie używaj określeń epoki (np. „lata 90.”, „retro”, „synthwave”), dopóki nie wskażesz konkretnych dźwięków, które to potwierdzają. Syntezator wpisz tylko wtedy, gdy wyraźnie słyszysz brzmienie syntezatora; samplowane pianino, smyczki, gitarę lub wokal opisz jako sample. Nie wolno nazywać utworu elektronicznym tylko dlatego, że bit jest programowany.',
+      'Odpowiedz na pytania kontrolne, każde krótko i konkretnie: (1) czy jest wokal i jaki: rap, śpiew, mieszany, melodyjny, agresywny, tempo i flow; (2) czym jest sekcja rytmiczna: żywa perkusja czy programowana, jak brzmi stopa (krótka, długa 808, akustyczna), werbel lub clap, hi-haty (proste, szybkie rolki, trap hi-haty), (3) bas: 808/sub, gitara basowa, syntezator; (4) instrumenty melodyczne: pianino, gitary, smyczki, dęte, pady, leady, sample z płyt; (5) wykorzystanie sampli lub pętli, (6) gęstość i przestrzeń miksu, (7) co zmienia się między zwrotką a refrenem.',
+      'Potem podaj 3 kandydatów gatunku z oceną pewności i uzasadnieniem opartym na usłyszanych dźwiękach, oraz 2 gatunki, które wydają się pasować, ale NIE pasują, z powodem.',
+      'Zwróć tylko JSON: {"vocal":"","drums":"","bass":"","melodic":"","samples_loops":"","mix":"","verse_vs_chorus":"","timeline":[{"time":"0:00","what":""}],"genre_candidates":[{"genre":"","confidence":0,"evidence":""}],"not_genres":[{"genre":"","why":""}],"era_evidence":"po czym poznać epokę produkcji (konkretne brzmienia) albo napisz, że nie da się stwierdzić"}'
+    ].filter(Boolean).join('\n');
+  };
+  G.decompPrompt = function (an, f, log, hint) {
     return [
       'Jesteś doświadczonym producentem muzycznym, inżynierem miksu i analitykiem brzmienia. Posłuchaj CAŁEJ piosenki bardzo uważnie, od początku do końca, i zrób jej PEŁNĄ dekompozycję: rytm, bas, gitary, klawisze i syntezatory, wokal, harmonia, miks, budowa utworu. Nie zgaduj z gatunku: opisuj to, co SŁYCHAĆ w tym konkretnym nagraniu, nawet gdy jest nietypowe lub miesza gatunki.',
       G.facts(f),
+      log ? 'PROTOKÓŁ ODSŁUCHU (twoje wcześniejsze, dokładne obserwacje; dekompozycja ma być z nim zgodna, a każde pole ma wynikać z usłyszanych dźwięków):\n' + JSON.stringify(log) : '',
+      hint ? 'WSKAZÓWKA UŻYTKOWNIKA (traktuj jako prawdę, jeśli nie jest jawnie sprzeczna z nagraniem): ' + hint : '',
+      'GATUNEK I EPOKĘ wybierz po konkretnych dźwiękach (brzmienie stopy, werbla, hi-hatów, basu, sposób rapowania lub śpiewania, charakter samplów i miksu), a nie po nastroju. Nie dopisuj syntezatorów, elektroniki ani epoki, których nie słychać. Jeśli jest wokal rapowany na programowanym bicie z samplami, nazwij to właściwym nurtem hip-hopu lub trapu, a nie „muzyką elektroniczną”.',
       'ZASADY: nie podawaj nazw artystów, zespołów, albumów ani tytułów. Nie cytuj tekstu. Każde pole wypełnij konkretem (żadnych ogólników typu „energetyczny utwór"). Jeśli czegoś w nagraniu nie ma (np. gitar), wpisz "brak". Jeśli nie masz pewności, napisz najbardziej prawdopodobną wersję i dodaj „(niepewne)". "arrangement" ma mieć wpis dla każdej wyraźnej zmiany w utworze z czasem m:ss.',
       'Zwróć tylko JSON o strukturze: ' + SHAPE_DECOMP
     ].join('\n');
@@ -140,7 +155,7 @@
   };
   G.checkPrompt = function (variants, dec) {
     return [
-      'Posłuchaj ponownie tej piosenki. Poniżej propozycje pola Styles dla Suno, które mają dać utwór o takim samym brzmieniu. Sprawdź je na słuch i POPRAW: usuń hasła, których w nagraniu nie słychać lub które są sprzeczne z nagraniem (np. zły gatunek, zły wokal, złe tempo, zły bas), dodaj brakujące najbardziej charakterystyczne cechy, ułóż hasła od najważniejszego. Zachowaj angielski, przecinki, brak nazw artystów, limity (wariant 1: do 950 znaków, wariant 2: do 400, wariant 3: do 950).',
+      'Posłuchaj ponownie tej piosenki. Poniżej propozycje pola Styles dla Suno, które mają dać utwór o takim samym brzmieniu. Najpierw oceń na słuch, czy gatunek i epoka z propozycji naprawdę pasują do nagrania (np. czy to nie rap/trap/pop zamiast „elektronicznego”, czy w ogóle słychać syntezatory, czy epoka się zgadza). Potem POPRAW: usuń hasła, których w nagraniu nie słychać lub które są sprzeczne z nagraniem (np. zły gatunek, zły wokal, złe tempo, zły bas), dodaj brakujące najbardziej charakterystyczne cechy, ułóż hasła od najważniejszego. Zachowaj angielski, przecinki, brak nazw artystów, limity (wariant 1: do 950 znaków, wariant 2: do 400, wariant 3: do 950).',
       'PROPOZYCJE:\n' + JSON.stringify(variants.map((v) => ({ label: v.label, styles: v.styles, exclude: v.exclude }))),
       'Zwróć tylko JSON: {"verdict":"jedno zdanie po polsku: co się zgadzało, co poprawiono","variants":[{"label":"","styles":"","exclude":""}]}'
     ].join('\n');
@@ -153,27 +168,30 @@
     const S = App.studio; say('Wczytuję nagranie…');
     const buf = await S.decode(await file.arrayBuffer()); const an = S.analyze(buf);
     say('Mierzę tempo, tonację i brzmienie…');
-    const f = G.features(buf, an), win = G.window(an), data = S.wavChunk(buf, win[0], win[1]);
+    const f = G.features(buf, an), win = G.window(an), data = S.wavChunk(buf, win[0], win[1], true);
     G.lastAudio = { name: file.name, data };
     const part = [{ inline_data: { mime_type: 'audio/wav', data } }];
-    say('1/3 Gemini słucha całej piosenki i rozkłada ją na części…');
-    const dec = J(await App.ai.gemini(G.decompPrompt(an, f), { json: true, temp: 0.2, parts: part }));
+    const hint = (o && o.hint) || '';
+    say('1/4 Gemini robi protokół odsłuchu (co faktycznie słychać)…');
+    let log = null; try { log = J(await App.ai.gemini(G.listenPrompt(an, f, hint), { json: true, temp: 0.1, parts: part })); } catch (e) { log = null; }
+    say('2/4 Gemini rozkłada piosenkę na części…');
+    const dec = J(await App.ai.gemini(G.decompPrompt(an, f, log, hint), { json: true, temp: 0.1, parts: part }));
     if (!dec || !dec.genre) throw new Error('Gemini nie rozłożył nagrania. Spróbuj ponownie.');
-    say('2/3 Układam pola Suno z wyników…');
+    say('3/4 Układam pola Suno z wyników…');
     const sr = J(await App.ai.gemini(G.stylePrompt(dec, f, o, theme), { json: true, temp: 0.6 }));
     let vs = (sr.variants || []).filter((v) => v && v.styles).map((v) => ({ label: String(v.label || 'Wariant'), styles: String(v.styles).trim(), exclude: String(v.exclude || '').trim(), weirdness: Math.round(Number(v.weirdness)) || 40, influence: Math.round(Number(v.influence)) || 70 }));
     if (!vs.length) throw new Error('Gemini nie ułożył stylu. Spróbuj ponownie.');
     if (!str(sr.lyrics).trim()) { try { const l2 = J(await App.ai.gemini(G.stylePrompt(dec, f, o, theme) + '\nPoprzednio brakowało pola "lyrics". Wypełnij je pełnym tekstem.', { json: true, temp: 0.8 })); sr.lyrics = l2.lyrics; sr.title = sr.title || l2.title; sr.structure_tags = sr.structure_tags || l2.structure_tags; } catch (e) { } }
     let verdict = '';
     try {
-      say('3/3 Gemini sprawdza styl na słuch i poprawia…');
+      say('4/4 Gemini sprawdza gatunek i styl na słuch i poprawia…');
       const ck = J(await App.ai.gemini(G.checkPrompt(vs, dec), { json: true, temp: 0.3, parts: part }));
       verdict = str(ck.verdict);
       (ck.variants || []).forEach((c, i) => { if (c && c.styles && vs[i]) { vs[i].styles = String(c.styles).trim(); if (c.exclude) vs[i].exclude = String(c.exclude).trim(); } });
     } catch (e) { verdict = ''; }
     vs.forEach((v, i) => { v.styles = v.styles.slice(0, i === 1 ? 600 : 995); });
     return {
-      id: App.uid('r'), kind: 'ref', name: file.name.replace(/\.[^.]+$/, ''), theme: theme || '', at: Date.now(), measured: f, dec, verdict,
+      id: App.uid('r'), kind: 'ref', name: file.name.replace(/\.[^.]+$/, ''), theme: theme || '', at: Date.now(), measured: f, dec, log, verdict,
       variants: vs, tags: [].concat(sr.structure_tags || []).map(str).filter(Boolean), tip: str(sr.tip), title: str(sr.title).trim(), lyrics: str(sr.lyrics).trim()
     };
   };
@@ -242,6 +260,7 @@
     root.appendChild(h('div', { class: 'seg', role: 'tablist' }, [['idea', 'Z pomysłu'], ['ref', 'Z piosenki']].map((m) => h('button', { role: 'tab', 'aria-selected': st.mode === m[0] ? 'true' : 'false', class: st.mode === m[0] ? 'on' : '', onclick: () => { st.mode = m[0]; rerender(); } }, m[1]))));
     if (st.mode === 'ref') { refView(root, st, rerender); return root; }
     const ta = h('textarea', { rows: 4, placeholder: 'Np. idę na siłownię, chcę czegoś potężnego, co rozniesie mi mózg na słuchawkach i pozwoli przerzucić setki kilogramów więcej', value: st.idea, oninput: (e) => { st.idea = e.target.value; } });
+    const hint = h('textarea', { rows: 2, placeholder: 'Co wiesz o tym utworze (opcjonalnie): gatunek, wokal, instrumenty. Np. „UK drill, męski rap, pianino i sample, bez syntezatorów”. Gemini potraktuje to jako pewnik.', value: st.rhint || '', oninput: (e) => { st.rhint = e.target.value; } });
     const seg = (label, list, key) => h('div', { class: 'stack' }, h('span', { class: 'flabel' }, label), h('div', { class: 'row-btns' }, list.map((x) => K.chip(x[1], st.opts[key] === x[0], () => { st.opts[key] = x[0]; rerender(); }))));
     const hasKey = App.ai.hasKey();
     const go = async () => {
@@ -298,13 +317,13 @@
     const go = async () => {
       if (st.busy) return; if (!st.rfile) { toast('Najpierw wybierz plik z piosenką.'); return; }
       st.busy = true; st.err = ''; st.status = ''; rerender();
-      try { st.ref = await G.analyzeRef(st.rfile, o, st.rtheme.trim(), (m) => { st.status = m; rerender(); }); App.state.quick.unshift(st.ref); App.state.quick = App.state.quick.slice(0, 30); App.save(); }
+      try { st.ref = await G.analyzeRef(st.rfile, Object.assign({}, o, { hint: (st.rhint || '').trim() }), st.rtheme.trim(), (m) => { st.status = m; rerender(); }); App.state.quick.unshift(st.ref); App.state.quick = App.state.quick.slice(0, 30); App.save(); }
       catch (e) { st.err = e.message || 'Błąd'; }
       st.busy = false; st.status = ''; rerender();
     };
     root.appendChild(h('div', { class: 'compose' },
       h('label', { class: 'btn big ghost filebtn' }, icon('plus', 18), st.rfile ? 'Wybrany: ' + st.rfile.name : 'Wybierz plik z piosenką', fileIn),
-      theme, seg('Język nowego tekstu', [['auto', 'Jak w piosence'], ['pl', 'Polski'], ['en', 'Angielski']], 'lang'),
+      hint, theme, seg('Język nowego tekstu', [['auto', 'Jak w piosence'], ['pl', 'Polski'], ['en', 'Angielski']], 'lang'),
       hasKey ? h('button', { class: 'btn big', disabled: st.busy ? 'true' : null, onclick: go }, icon('spark', 18), st.busy ? (st.status || 'Analizuję…') : 'Analizuj dla Suno (styl + nowy tekst)')
         : h('div', { class: 'warnbox' }, h('p', null, 'Ta funkcja wymaga klucza Gemini (Ustawienia → Klucz Gemini), bo to Gemini słucha nagrania.'))));
     root.appendChild(h('p', { class: 'muted small' }, 'Plik zostaje na telefonie. Do Gemini idzie jednorazowo cały utwór (do 5 minut), bez zapisywania. Analiza to 3 zapytania i trwa do minuty.'));
@@ -317,7 +336,7 @@
       const dr = d.drums || {}, bs = d.bass || {}, gt = d.guitars || {}, vc = d.vocals || {}, mx = d.mix || {}, tp = d.tempo || {}, ky = d.key || {};
       root.appendChild(h('h3', { class: 'sec' }, 'Pełna dekompozycja „' + r.name + '”'));
       const grid = h('div', { class: 'dgrid' }); root.appendChild(grid);
-      grid.appendChild(sec('Gatunek i tempo', row('Gatunek', [d.genre, d.subgenre].filter(Boolean).join(' / ')), row('Korzenie brzmienia', d.lineage), row('Epoka', d.era), row('Tempo', (tp.bpm || f.bpm) + ' BPM, ' + [tp.feel, tp.groove].filter(Boolean).join(', ') + ' (algorytm: ' + f.bpm + ')'), row('Tonacja', [str(ky.tonic), str(ky.mode)].filter(Boolean).join(' ') + (f.key ? ' (pomiar: ' + f.key + ')' : '')), row('Harmonia', ky.harmony)));
+      grid.appendChild(sec('Gatunek i tempo', row('Gatunek', [d.genre, d.subgenre].filter(Boolean).join(' / ')), row('Dlaczego ten gatunek', d.genre_evidence), row('Czym to NIE jest', r.log && r.log.not_genres ? [].concat(r.log.not_genres).map((x) => str(x.genre) + ' (' + str(x.why) + ')').join('; ') : ''), row('Korzenie brzmienia', d.lineage), row('Epoka', d.era), row('Tempo', (tp.bpm || f.bpm) + ' BPM, ' + [tp.feel, tp.groove].filter(Boolean).join(', ') + ' (algorytm: ' + f.bpm + ')'), row('Tonacja', [str(ky.tonic), str(ky.mode)].filter(Boolean).join(' ') + (f.key ? ' (pomiar: ' + f.key + ')' : '')), row('Harmonia', ky.harmony)));
       grid.appendChild(sec('Rytm i perkusja', row('Brzmienie zestawu', dr.kit_sound), row('Wzór', dr.pattern), row('Dźwięki', dr.sounds)));
       grid.appendChild(sec('Bas', row('Rodzaj', bs.type), row('Charakter', bs.character), row('Rola', bs.role)));
       grid.appendChild(sec('Gitary, klawisze, efekty', row('Gitary rytmiczne', gt.rhythm), row('Gitary prowadzące', gt.lead), row('Brzmienie gitar', gt.tone), row('Klawisze i syntezatory', d.keys_synths), row('Efekty i sample', d.fx_samples)));
