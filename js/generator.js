@@ -117,10 +117,10 @@
   G.profile = function (f) {
     const bp = f.bandPct || [0, 0, 0, 0, 0, 0], low = bp[0] + bp[1], hi = bp[4] + bp[5], c = f.centroid || 0, add = [], ex = [], notes = [];
     const bassClass = low < 19 ? 'light' : low > 32 ? 'heavy' : 'medium', bright = c > 2500 || hi > 40 ? 'bright' : c < 1700 ? 'dark' : 'balanced';
-    if (bassClass === 'light') { add.push('clean tight bass', 'not bass-heavy'); ex.push('heavy bass', 'deep sub bass', 'bass boosted', 'boomy', 'muddy low end', 'distorted 808'); notes.push('bas jest LEKKI (tylko ' + Math.round(low) + '% energii poniżej 250 Hz); nie opisuj go jako ciężki, głęboki ani dudniący'); }
-    if (bassClass === 'heavy') { add.push('heavy deep bass'); notes.push('bas jest bardzo mocny (' + Math.round(low) + '% energii poniżej 250 Hz)'); }
-    if (bright === 'bright') { add.push('bright crisp mix', 'airy highs', 'vocals upfront'); ex.push('dark muffled', 'lo-fi', 'muddy'); notes.push('miks jest JASNY (środek ciężkości ' + c + ' Hz, ' + Math.round(hi) + '% energii powyżej 2 kHz); opisz go jako jasny, czysty, z wyraźną górą i wokalem z przodu'); }
-    if (bright === 'dark') { add.push('dark warm mix'); notes.push('miks jest ciemny (środek ciężkości ' + c + ' Hz)'); }
+    if (bassClass === 'light') { ex.push('heavy bass', 'deep sub bass', 'bass boosted', 'boomy', 'muddy low end', 'distorted 808'); notes.push('bas jest LEKKI (tylko ' + Math.round(low) + '% energii poniżej 250 Hz); nie opisuj go jako ciężki, głęboki ani dudniący'); }
+    if (bassClass === 'heavy') { notes.push('bas jest bardzo mocny (' + Math.round(low) + '% energii poniżej 250 Hz)'); }
+    if (bright === 'bright') { ex.push('lo-fi', 'muffled'); notes.push('dużo energii w górze (środek ciężkości ' + c + ' Hz, ' + Math.round(hi) + '% powyżej 2 kHz): to mogą być hi-haty, smyczki, chór lub wokal. NIE wnioskuj z tego gatunku pop; gatunek rozstrzygają bębny, bas i sposób wykonania wokalu'); opisz go jako jasny, czysty, z wyraźną górą i wokalem z przodu'); }
+    if (bright === 'dark') { notes.push('miks jest ciemny (środek ciężkości ' + c + ' Hz)'); }
     return { bassClass, bright, add, ex, notes, low, hi };
   };
   const BASS_TOK = /(heavy|deep|booming|distorted|massive|crushing|thunderous|sub)\W*(808\W*)?(sub\W*)?bass|sub\W*bass|bass\W*boost|heavy\W*low\W*end|deep\W*low\W*end|808\W*sub|distorted\W*808|rumbling/i;
@@ -132,7 +132,7 @@
     const have = (t) => toks.some((x) => x.toLowerCase() === t.toLowerCase()), head = []; if (bpm) head.push(bpm + ' BPM'); if (f.key && f.keyConf >= 0.75) head.push(f.key);
     // tempo i tonacja na początek (zaraz po gatunkach), cechy brzmienia z pomiaru dopisane z przodu listy cech
     const genre = toks.slice(0, 2), rest = toks.slice(2); pr.add.forEach((t) => { if (!have(t)) rest.unshift(t); });
-    const out = genre.concat(head, rest).join(', '); let ex = String(exclude || '').split(',').map((x) => x.trim()).filter(Boolean); pr.ex.forEach((t) => { if (!ex.some((x) => x.toLowerCase() === t.toLowerCase())) ex.push(t); });
+    const out = genre.concat(head, rest).join(', '); const rap = /rap|trap|hip.?hop|drill|boom bap/i.test(out); let ex = String(exclude || '').split(',').map((x) => x.trim()).filter(Boolean); (rap ? pr.ex.concat(['pop', 'pop vocals', 'upbeat']) : pr.ex).forEach((t) => { if (!ex.some((x) => x.toLowerCase() === t.toLowerCase())) ex.push(t); });
     return { styles: out, exclude: ex.join(', ') };
   };
   G.facts = (f) => [
