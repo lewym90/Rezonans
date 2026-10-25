@@ -58,7 +58,7 @@
       for (let i = 0; i < N; i++) { const k = c0 + i; if (k >= 0 && k < n) re[i] = (a[k] + b[k]) * 0.5 * win[i]; }
       S.fft(re, im);
       for (let k = 1; k < N / 2; k++) {
-        const fr = k * sr / N, p = re[k] * re[k] + im[k] * im[k];
+        const fr = k * sr / N, p = Math.sqrt(re[k] * re[k] + im[k] * im[k]);
         for (let q = 0; q < 6; q++) if (fr >= edges[q] && fr < edges[q + 1]) { bandE[q] += p; break; }
         if (fr > 50) { cent += fr * p; centW += p; }
         if (fr >= 65 && fr <= 1800) { const m = 12 * Math.log2(fr / 440) + 69, pc = ((Math.round(m) % 12) + 12) % 12; chroma[pc] += Math.sqrt(p); }
@@ -69,6 +69,7 @@
     out.key = bestK.name; out.keyConf = Math.round(bestK.c * 100) / 100;
     const tot = bandE.reduce((x, y) => x + y, 0) || 1; const names = ['sub bas <60 Hz', 'bas 60-250 Hz', 'dół środka 250-500 Hz', 'środek 0,5-2 kHz', 'prezencja 2-5 kHz', 'góra >5 kHz'];
     out.bands = names.map((nm, i) => nm + ': ' + Math.round(bandE[i] / tot * 1000) / 10 + '%').join('; ');
+    out.bandPct = bandE.map((x) => Math.round(x / tot * 1000) / 10);
     out.centroid = Math.round(cent / (centW || 1));
     // dynamika
     let pk = 0, ss = 0; for (let i = 0; i < n; i += 2) { const x = (a[i] + b[i]) * 0.5; ss += x * x; const ax = Math.abs(a[i]); if (ax > pk) pk = ax; }
@@ -95,9 +96,15 @@
       const acf = (lag) => { const l0 = Math.floor(lag), fr = lag - l0; let s = 0, c = 0; for (let i = 0; i + l0 + 1 < nn; i++) { s += x[i] * (x[i + l0] * (1 - fr) + x[i + l0 + 1] * fr); c++; } return c ? s / c : 0; };
       const sc = []; for (let b = 60; b <= 200; b += 0.5) { const lag = 60 / b * fps; sc.push([b, (acf(lag) + acf(lag * 2) * 0.8 + acf(lag * 4) * 0.6) / (den / nn)]); }
       const pk = []; for (let i = 1; i < sc.length - 1; i++) if (sc[i][1] > sc[i - 1][1] && sc[i][1] >= sc[i + 1][1]) pk.push(sc[i]);
-      pk.sort((a, b) => b[1] - a[1]); const out = []; for (const q of pk) if (out.every((o) => Math.abs(o[0] - q[0]) / o[0] > 0.06)) out.push(q); return out.slice(0, 3).map((q) => Math.round(q[0]) + ' BPM (siła ' + Math.round(q[1] * 100) / 100 + ')');
+      pk.sort((a, b) => b[1] - a[1]); const out = []; for (const q of pk) if (out.every((o) => Math.abs(o[0] - q[0]) / o[0] > 0.06)) out.push(q); return out.slice(0, 3).map((q) => ({ b: q[0], s: q[1], txt: Math.round(q[0]) + ' BPM (siła ' + Math.round(q[1] * 100) / 100 + ')' }));
     };
-    try { out.tempoAll = tempoCands(fl.map((v, i) => v + fh[i])).join(', '); out.tempoLow = tempoCands(fl).join(', '); } catch (e) { out.tempoAll = ''; out.tempoLow = ''; }
+    try {
+      const cA = tempoCands(fl.map((v, i) => v + fh[i])), cL = tempoCands(fl); out.tempoAll = cA.map((q) => q.txt).join(', '); out.tempoLow = cL.map((q) => q.txt).join(', ');
+      // głosowanie: każdego kandydata składamy do zakresu 80-160 BPM (półtempo i podwójne tempo to ta sama siatka) i sumujemy siłę zbliżonych wartości
+      const fold = (b) => { while (b < 80) b *= 2; while (b >= 160) b /= 2; return b; }, votes = [];
+      cA.concat(cL).map((q) => ({ b: fold(q.b), s: Math.max(0.05, q.s) })).concat([{ b: fold(an.bpm), s: 0.3 }]).forEach((q) => { const v = votes.find((x) => Math.abs(x.b - q.b) / x.b < 0.045); if (v) { v.b = (v.b * v.s + q.b * q.s) / (v.s + q.s); v.s += q.s; } else votes.push({ b: q.b, s: q.s }); });
+      votes.sort((a, b) => b.s - a.s); out.tempoFinal = Math.round(votes[0].b); out.tempoAlt = votes[1] && votes[1].s > 0.6 * votes[0].s ? Math.round(votes[1].b) : 0;
+    } catch (e) { out.tempoAll = ''; out.tempoLow = ''; out.tempoFinal = 0; out.tempoAlt = 0; }
     const secs = fcount * H / sr || 1, beatsPerSec = an.bpm / 60;
     out.kickPerBeat = Math.round(peaks(fl) / secs / beatsPerSec * 100) / 100; out.hatPerBeat = Math.round(peaks(fh) / secs / beatsPerSec * 100) / 100;
     // przebieg energii co 5 s (0-9) i rozkład sekcji
@@ -106,9 +113,33 @@
     out.dur = Math.round(dur); out.bpm = Math.round(an.bpm * 10) / 10; out.vocalStart = Math.round(an.vocalStart); out.chorus = Math.round(an.chorus.start);
     return out;
   };
+  /* profil brzmienia wyliczony z pomiaru: twarde ograniczenia, które wygrywają z opisem Gemini */
+  G.profile = function (f) {
+    const bp = f.bandPct || [0, 0, 0, 0, 0, 0], low = bp[0] + bp[1], hi = bp[4] + bp[5], c = f.centroid || 0, add = [], ex = [], notes = [];
+    const bassClass = low < 19 ? 'light' : low > 32 ? 'heavy' : 'medium', bright = c > 2500 || hi > 40 ? 'bright' : c < 1700 ? 'dark' : 'balanced';
+    if (bassClass === 'light') { add.push('clean tight bass', 'not bass-heavy'); ex.push('heavy bass', 'deep sub bass', 'bass boosted', 'boomy', 'muddy low end', 'distorted 808'); notes.push('bas jest LEKKI (tylko ' + Math.round(low) + '% energii poniżej 250 Hz); nie opisuj go jako ciężki, głęboki ani dudniący'); }
+    if (bassClass === 'heavy') { add.push('heavy deep bass'); notes.push('bas jest bardzo mocny (' + Math.round(low) + '% energii poniżej 250 Hz)'); }
+    if (bright === 'bright') { add.push('bright crisp mix', 'airy highs', 'vocals upfront'); ex.push('dark muffled', 'lo-fi', 'muddy'); notes.push('miks jest JASNY (środek ciężkości ' + c + ' Hz, ' + Math.round(hi) + '% energii powyżej 2 kHz); opisz go jako jasny, czysty, z wyraźną górą i wokalem z przodu'); }
+    if (bright === 'dark') { add.push('dark warm mix'); notes.push('miks jest ciemny (środek ciężkości ' + c + ' Hz)'); }
+    return { bassClass, bright, add, ex, notes, low, hi };
+  };
+  const BASS_TOK = /(heavy|deep|booming|distorted|massive|crushing|thunderous|sub)\W*(808\W*)?(sub\W*)?bass|sub\W*bass|bass\W*boost|heavy\W*low\W*end|deep\W*low\W*end|808\W*sub|distorted\W*808|rumbling/i;
+  G.enforce = function (styles, exclude, f, tempoOverride) {
+    const pr = G.profile(f); let toks = String(styles || '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (pr.bassClass === 'light') toks = toks.filter((t) => !BASS_TOK.test(t));
+    if (pr.bright === 'bright') toks = toks.filter((t) => !/^(dark|muffled|lo-?fi)\b/i.test(t));
+    const bpm = tempoOverride || f.tempoFinal; toks = toks.filter((t) => !/\d+(\.\d+)?\s*bpm/i.test(t) && !/^half-?time/i.test(t) && !(f.key && t.toLowerCase() === f.key.toLowerCase()));
+    const have = (t) => toks.some((x) => x.toLowerCase() === t.toLowerCase()), head = []; if (bpm) head.push(bpm + ' BPM'); if (f.key && f.keyConf >= 0.75) head.push(f.key);
+    // tempo i tonacja na początek (zaraz po gatunkach), cechy brzmienia z pomiaru dopisane z przodu listy cech
+    const genre = toks.slice(0, 2), rest = toks.slice(2); pr.add.forEach((t) => { if (!have(t)) rest.unshift(t); });
+    const out = genre.concat(head, rest).join(', '); let ex = String(exclude || '').split(',').map((x) => x.trim()).filter(Boolean); pr.ex.forEach((t) => { if (!ex.some((x) => x.toLowerCase() === t.toLowerCase())) ex.push(t); });
+    return { styles: out, exclude: ex.join(', ') };
+  };
   G.facts = (f) => [
     'ZMIERZONE FAKTY (twarde pomiary z sygnału, traktuj jako dane, ale tempo i tonację zweryfikuj na słuch):',
     '- długość ' + f.dur + ' s; prosty algorytm tempa (mało wiarygodny, ufaj raczej kandydatom poniżej i własnemu słuchowi): ' + f.bpm + ' BPM (możliwe też ' + Math.round(f.bpm / 2) + ' lub ' + Math.round(f.bpm * 2) + ' BPM jako półtempo/podwójne tempo; sprawdź czy to feel half-time)',
+    (f.tempoFinal ? '- USTALONE TEMPO po głosowaniu pomiarów: ' + f.tempoFinal + ' BPM' + (f.tempoAlt ? ' (druga możliwość: ' + f.tempoAlt + ')' : '') + '. Użyj tej wartości w tempo.bpm, chyba że wyraźnie słyszysz inną siatkę rytmu' : ''),
+    (G.profile(f).notes.length ? '- WYMOGI Z POMIARU (wygrywają z wrażeniem odsłuchowym, bo to liczby, a nie opinia): ' + G.profile(f).notes.join('; ') : ''),
     (f.tempoAll ? '- kandydaci tempa z autokorelacji rytmu: ogólnie ' + f.tempoAll + '; samo pasmo stopy/basu ' + f.tempoLow + '. UWAGA: tempo bywa półtempem lub podwójnym tempem (np. trap: stopa 808 w half-time, hi-haty w podwójnym), więc wybierz tempo, które odpowiada siatce werbla/clapa, a w tempo.alt podaj drugą sensowną wartość' : ''),
     '- tonacja z analizy chromy: ' + f.key + ' (pewność ' + f.keyConf + ', poniżej 0,6 niepewna)',
     '- rozkład energii widma: ' + f.bands + '; środek ciężkości widma ' + f.centroid + ' Hz (ponad 2500 Hz = jasne, poniżej 1500 Hz = ciemne, ciężkie)',
@@ -153,7 +184,7 @@
       hint ? 'WSKAZÓWKA UŻYTKOWNIKA (PEWNIK, ma pierwszeństwo przed dekompozycją, gatunek i wokal z niej wpisz na początku Styles): ' + hint : '',
       'REGUŁY PISANIA POLA STYLES (kluczowe dla jakości):',
       '- po angielsku, rozdzielone przecinkami, bez nazw artystów i zespołów;',
-      '- Suno najmocniej słucha PIERWSZYCH haseł: zacznij od gatunku i podgatunku (najdokładniejszych), potem tempo "' + (dec.tempo && dec.tempo.bpm ? dec.tempo.bpm : f.bpm) + ' BPM" i feel, potem 3 najważniejsze cechy z "signature", potem wokal (płeć, barwa, sposób), potem perkusja, bas, gitary/klawisze, potem miks i produkcja;',
+      '- Suno najmocniej słucha PIERWSZYCH haseł: zacznij od gatunku i podgatunku (najdokładniejszych), potem tempo "' + (f.tempoFinal || (dec.tempo && dec.tempo.bpm ? dec.tempo.bpm : f.bpm)) + ' BPM" i feel, potem 3 najważniejsze cechy z "signature", potem wokal (płeć, barwa, sposób), potem perkusja, bas, gitary/klawisze, potem miks i produkcja;',
       '- używaj konkretnych, powszechnie rozpoznawanych terminów (np. "downtuned palm-muted riffs", "booming 808 bass", "half-time groove", "gritty male rap vocals", "gang vocals"), nie opisowych zdań;',
       '- jeśli tempo jest niejednoznaczne (tempo.alt), wariant 1 użyj głównego BPM, a wariant 3 alternatywnego i wpisz to w "tip";',
       '- słownik haseł, które Suno zna najlepiej (używaj ich, gdy pasują, i NIE wymyślaj rzadkich): gatunki: trap, dark trap, cinematic trap, drill, UK drill, boom bap, melodic rap, cloud rap, phonk, hip hop, rnb, pop, rock, hard rock, metal, alternative, synthwave, edm; bas: 808 bass, sub bass, distorted 808, heavy bass, deep bass; perkusja: trap hi-hats, hi-hat rolls, hard-hitting drums, snappy snare, clap, live drums; wokal: male rap vocals, deep male voice, raspy vocals, melodic rap, autotune, rap flow, whispered, aggressive vocals, female vocals, harmonies, ad-libs, gang vocals, choir, epic choir, male choir, gospel choir, chanting; instrumenty: orchestral strings, cinematic strings, piano, dark piano, brass, synth pads, guitar riffs, flute, bells; nastrój: dark, ominous, moody, aggressive, epic, cinematic, melancholic, anthemic, hypnotic; miks: heavy low-end, punchy, crisp, wide stereo, lo-fi, polished;',
@@ -206,28 +237,40 @@
       verdict = str(ck.verdict);
       (ck.variants || []).forEach((c, i) => { if (c && c.styles && vs[i]) { vs[i].styles = String(c.styles).trim(); if (c.exclude) vs[i].exclude = String(c.exclude).trim(); } });
     } catch (e) { verdict = ''; }
-    vs.forEach((v, i) => { v.styles = v.styles.slice(0, i === 1 ? 600 : 995); });
+    vs.forEach((v, i) => { const e = G.enforce(v.styles, v.exclude, f, i === 2 && f.tempoAlt ? f.tempoAlt : 0); v.styles = e.styles.slice(0, i === 1 ? 600 : 995); v.exclude = e.exclude; });
     return {
       id: App.uid('r'), kind: 'ref', name: file.name.replace(/\.[^.]+$/, ''), theme: theme || '', at: Date.now(), measured: f, dec, log, verdict,
       variants: vs, tags: [].concat(sr.structure_tags || []).map(str).filter(Boolean), tip: str(sr.tip), title: str(sr.title).trim(), lyrics: str(sr.lyrics).trim()
     };
   };
   /* porównanie: oryginał kontra to, co wygenerowało Suno; Gemini podaje różnice i poprawiony styl */
+  G.diffText = function (ref, got) {
+    const a = ref.bandPct || [], b = got.bandPct || [], out = [];
+    if (a.length && b.length) {
+      const lr = a[0] + a[1], lg = b[0] + b[1]; out.push('bas poniżej 250 Hz: wzór ' + Math.round(lr) + '%, Suno ' + Math.round(lg) + '%' + (lg - lr > 8 ? ' (Suno ma ZA CIĘŻKI bas: usuń ciężkie hasła basowe, dodaj lekki, czysty bas)' : lg - lr < -8 ? ' (Suno ma za lekki bas)' : ''));
+      const hr = a[4] + a[5], hg = b[4] + b[5]; out.push('góra powyżej 2 kHz: wzór ' + Math.round(hr) + '%, Suno ' + Math.round(hg) + '%' + (hr - hg > 10 ? ' (Suno jest za ciemne: dodaj jasne, czyste, powietrzne brzmienie)' : ''));
+    }
+    out.push('środek ciężkości widma: wzór ' + ref.centroid + ' Hz, Suno ' + got.centroid + ' Hz');
+    out.push('tempo: wzór ' + (ref.tempoFinal || ref.bpm) + ' BPM, Suno ' + (got.tempoFinal || got.bpm) + ' BPM; tonacja: wzór ' + ref.key + ', Suno ' + got.key);
+    return out.join('. ') + '.';
+  };
   G.compare = async function (fileSuno, r, say) {
     const S = App.studio; say('Wczytuję wynik z Suno…');
-    const buf = await S.decode(await fileSuno.arrayBuffer()), an = S.analyze(buf), f = G.features(buf, an), win = G.window(an), data = S.wavChunk(buf, win[0], Math.min(win[1], win[0] + 150));
+    const buf = await S.decode(await fileSuno.arrayBuffer()), an = S.analyze(buf), f = G.features(buf, an), win = G.window(an), data = S.wavChunk(buf, win[0], Math.min(win[1], win[0] + 150), true);
     if (!G.lastAudio || G.lastAudio.name.replace(/\.[^.]+$/, '') !== r.name) throw new Error('Do porównania potrzebny jest oryginał. Przeanalizuj go jeszcze raz w tej sesji (aplikacja nie przechowuje nagrań).');
     say('Gemini porównuje oba nagrania…');
     const v1 = r.variants[0], orig = G.lastAudio.data;
     const prompt = [
       'Dostajesz dwa nagrania. NAGRANIE 1 to wzór (piosenka, którą użytkownik lubi). NAGRANIE 2 to utwór wygenerowany w Suno z poniższymi polami, mający brzmieć jak wzór (styl, nie kopia).',
       'Styles użyte w Suno: ' + v1.styles, 'Exclude: ' + v1.exclude,
+      'TWARDE RÓŻNICE Z POMIARU (liczby, nie opinia; wygrywają z wrażeniem odsłuchowym): ' + G.diffText(r.measured, f),
       'Zmierzone cechy nagrania 2: tempo ' + f.bpm + ' BPM, tonacja ' + f.key + ', środek ciężkości widma ' + f.centroid + ' Hz, crest ' + f.crest + ' dB, ' + f.bands + '. Zmierzone cechy wzoru: tempo ' + r.measured.bpm + ' BPM, tonacja ' + r.measured.key + ', środek ciężkości widma ' + r.measured.centroid + ' Hz, crest ' + r.measured.crest + ' dB, ' + r.measured.bands + '.',
       'Porównaj dokładnie: tempo i feel, perkusja, bas, gitary/klawisze, wokal (płeć, barwa, flow, efekty), miks i jasność, energia, budowa. Wypisz, co się zgadza, a co NIE (po polsku, konkretnie). Potem popraw pola Suno tak, by zbliżyć się do wzoru: dodaj brakujące hasła na początek, usuń lub przenieś do Exclude to, co przeszkadza, zmień suwaki. Bez nazw artystów. Styles po angielsku do 950 znaków.',
       'Zwróć tylko JSON: {"match":["co się zgadza"],"diff":["co się różni i dlaczego"],"styles":"","exclude":"","weirdness":0,"influence":0,"advice":"jedno zdanie po polsku"}'
     ].join('\n');
-    const c = J(await App.ai.gemini(prompt, { json: true, temp: 0.3, parts: [{ text: 'NAGRANIE 1 (wzór):' }, { inline_data: { mime_type: 'audio/wav', data: orig } }, { text: 'NAGRANIE 2 (wynik z Suno):' }, { inline_data: { mime_type: 'audio/wav', data } }] }));
-    return { match: [].concat(c.match || []).map(str), diff: [].concat(c.diff || []).map(str), styles: str(c.styles).slice(0, 995), exclude: str(c.exclude), weirdness: Math.round(Number(c.weirdness)) || v1.weirdness, influence: Math.round(Number(c.influence)) || v1.influence, advice: str(c.advice) };
+    const c = J(await App.ai.gemini(prompt, { json: true, temp: 0.2, parts: [{ text: 'NAGRANIE 1 (wzór):' }, { inline_data: { mime_type: 'audio/wav', data: orig } }, { text: 'NAGRANIE 2 (wynik z Suno):' }, { inline_data: { mime_type: 'audio/wav', data } }] }));
+    const en = G.enforce(str(c.styles), str(c.exclude), r.measured), hd = G.diffText(r.measured, f);
+    return { match: [].concat(c.match || []).map(str), diff: [hd].concat([].concat(c.diff || []).map(str)), styles: en.styles.slice(0, 995), exclude: en.exclude, weirdness: Math.round(Number(c.weirdness)) || v1.weirdness, influence: Math.round(Number(c.influence)) || v1.influence, advice: str(c.advice) };
   };
 
   /* ---------- pełny pakiet Suno dla kanału (z pomysłu albo „zaskocz mnie”) ---------- */
