@@ -260,7 +260,6 @@
     root.appendChild(h('div', { class: 'seg', role: 'tablist' }, [['idea', 'Z pomysłu'], ['ref', 'Z piosenki']].map((m) => h('button', { role: 'tab', 'aria-selected': st.mode === m[0] ? 'true' : 'false', class: st.mode === m[0] ? 'on' : '', onclick: () => { st.mode = m[0]; rerender(); } }, m[1]))));
     if (st.mode === 'ref') { refView(root, st, rerender); return root; }
     const ta = h('textarea', { rows: 4, placeholder: 'Np. idę na siłownię, chcę czegoś potężnego, co rozniesie mi mózg na słuchawkach i pozwoli przerzucić setki kilogramów więcej', value: st.idea, oninput: (e) => { st.idea = e.target.value; } });
-    const hint = h('textarea', { rows: 2, placeholder: 'Co wiesz o tym utworze (opcjonalnie): gatunek, wokal, instrumenty. Np. „UK drill, męski rap, pianino i sample, bez syntezatorów”. Gemini potraktuje to jako pewnik.', value: st.rhint || '', oninput: (e) => { st.rhint = e.target.value; } });
     const seg = (label, list, key) => h('div', { class: 'stack' }, h('span', { class: 'flabel' }, label), h('div', { class: 'row-btns' }, list.map((x) => K.chip(x[1], st.opts[key] === x[0], () => { st.opts[key] = x[0]; rerender(); }))));
     const hasKey = App.ai.hasKey();
     const go = async () => {
@@ -312,6 +311,7 @@
     const o = st.opts, hasKey = App.ai.hasKey();
     root.appendChild(h('p', { class: 'muted' }, 'Wgraj piosenkę, którą lubisz (mp3 z telefonu). Gemini posłucha całego utworu, aplikacja zmierzy tempo, tonację i brzmienie, rozłoży piosenkę na części (rytm, bas, gitary, wokal, miks, budowa) i zamieni to w gotowe pola do Suno. Dostajesz styl, a nie kopię: bez nazw artystów, bez cytowania tekstu.'));
     const fileIn = h('input', { type: 'file', accept: 'audio/*,.mp3,.wav,.m4a', onchange: (e) => { st.rfile = e.target.files[0] || null; rerender(); } });
+    const hint = h('textarea', { rows: 2, placeholder: 'Co wiesz o tym utworze (opcjonalnie): gatunek, wokal, instrumenty. Np. „UK drill, męski rap, pianino i sample, bez syntezatorów”. Gemini potraktuje to jako pewnik.', value: st.rhint || '', oninput: (e) => { st.rhint = e.target.value; } });
     const theme = h('textarea', { rows: 2, placeholder: 'Twój pomysł na temat tekstu (opcjonalnie), np. trening o piątej rano. Bez pomysłu Gemini wymyśli własny tekst.', value: st.rtheme, oninput: (e) => { st.rtheme = e.target.value; } });
     const seg = (label, list, key) => h('div', { class: 'stack' }, h('span', { class: 'flabel' }, label), h('div', { class: 'row-btns' }, list.map((x) => K.chip(x[1], o[key] === x[0], () => { o[key] = x[0]; rerender(); }))));
     const go = async () => {
