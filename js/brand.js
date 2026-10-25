@@ -77,72 +77,41 @@
     return function draw(ctx, t, freq, o) {
       const W = o.W, H = o.H, vert = H > W, u0 = o.t0 || 0, rel = t - u0, total = o.dur, e = an.energyAt(t), ko = kickEnv(bt, t), k = ko.k;
       const bi = Math.min(bt.env.length - 1, Math.max(0, Math.round(t * bt.fps))), b = bt.env[bi] || 0, S1 = Math.min(W, H);
-      ctx.save(); ctx.fillStyle = pal.bg; ctx.fillRect(0, 0, W, H);
-      // tło: wolny najazd, uderzenie basu lekko je „kopie”, drżenie kadru
-      const zoom = 1.07 + 0.05 * Math.min(1, rel / Math.max(1, total)) + 0.03 * k, sh = S1 * 0.006 * k;
-      cover(ctx, R.hero, W, H, zoom, Math.sin(t * 53) * sh, Math.cos(t * 61) * sh);
-      ctx.fillStyle = 'rgba(0,0,0,' + (0.22 - 0.1 * Math.min(1, k)) + ')'; ctx.fillRect(0, 0, W, H);
-      ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = hexA(pal.accent2, 0.22); ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over';
-      const vg = ctx.createRadialGradient(W / 2, H / 2, S1 * 0.3, W / 2, H / 2, Math.max(W, H) * 0.78); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.7)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
-      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = hexA(pal.accent2, 0.3 * Math.min(1, k) * Math.min(1, k)); ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over';
-      const cx = W / 2, cy = vert ? H * 0.34 : H * 0.4, box = vert ? W * 0.46 : H * 0.4, R0 = box * 0.46;
-      // poświata za logo
-      const gl = ctx.createRadialGradient(cx, cy, R0 * 0.2, cx, cy, R0 * (1.7 + 0.5 * k)); gl.addColorStop(0, hexA(pal.accent, 0.16 + 0.42 * Math.min(1, k) + 0.1 * b)); gl.addColorStop(1, hexA(pal.accent, 0));
-      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gl; ctx.fillRect(0, 0, W, H);
-      // fale uderzeniowe z mocnych uderzeń
-      ctx.lineCap = 'round';
-      for (let j = ko.i; j >= 0 && t - bt.kicks[j].t < 1.0; j--) {
-        const kk = bt.kicks[j]; if (kk.s < 0.72) continue; const u = (t - kk.t) / 1.0;
-        for (let r = 0; r < 2; r++) { const uu = u - r * 0.12; if (uu <= 0) continue; ctx.strokeStyle = hexA(pal.accent, Math.pow(1 - uu, 2) * 0.55 * kk.s); ctx.lineWidth = Math.max(1, S1 * 0.012 * (1 - uu)); ctx.beginPath(); ctx.arc(cx, cy, R0 * (0.75 + 2.1 * uu), 0, 7); ctx.stroke(); }
-      }
-      // cząstki tła: żar unosi się, pył opada i migocze; szybkość rośnie z energią
+      ctx.save(); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+      // 1. grafika: widoczna cały czas, bez filtrów; delikatnie pulsuje na uderzeniach basu
+      const zoom = 1.04 + 0.02 * Math.min(1, rel / Math.max(1, total)) + 0.035 * k;
+      cover(ctx, R.hero, W, H, zoom, 0, 0);
+      const cx = W / 2, cy = vert ? H * 0.4 : H * 0.42, box = vert ? W * 0.42 : H * 0.34;
+      // 3. cząsteczki: jasne, drobne, unoszą się; na uderzeniu basu robią się większe i jaśniejsze
+      ctx.globalCompositeOperation = 'lighter';
       for (let i = 0; i < N_AMB; i++) {
-        const sd = hash(i + 1), sx = hash(i + 101), sp = (fx === 'dust' ? 10 : 40) + sd * (fx === 'dust' ? 30 : 110), ph = hash(i + 201), sz = (0.6 + hash(i + 301) * 2.2) * S1 / 720;
+        const sd = hash(i + 1), sx = hash(i + 101), sp = 14 + sd * 40, ph = hash(i + 201), sz = (0.7 + hash(i + 301) * 2.0) * S1 / 720;
         const run = (t * sp * (0.7 + e) * S1 / 720 + ph * H * 1.2) % (H * 1.2);
-        const x = sx * W + Math.sin(t * (0.6 + sd) + i) * 14 * S1 / 720, y = fx === 'dust' ? run - H * 0.1 : H * 1.05 - run;
-        const tw = fx === 'dust' ? 0.35 + 0.65 * Math.abs(Math.sin(t * (1.2 + sd * 2) + i)) : 0.5 + 0.5 * Math.sin(t * 3 + i), al = (0.25 + 0.5 * tw) * (0.5 + 0.8 * Math.min(1, b + k * 0.5));
-        ctx.fillStyle = hexA(i % 3 ? pal.accent : pal.accent2, Math.min(0.9, al)); ctx.beginPath(); ctx.arc(x, y, sz * (1 + 0.8 * k), 0, 7); ctx.fill();
+        const x = sx * W + Math.sin(t * (0.5 + sd) + i) * 14 * S1 / 720, y = H * 1.05 - run;
+        const al = (0.18 + 0.35 * Math.abs(Math.sin(t * (1 + sd * 2) + i))) * (0.6 + 0.9 * Math.min(1, b + k * 0.6));
+        ctx.fillStyle = 'rgba(255,244,230,' + Math.min(0.85, al) + ')'; ctx.beginPath(); ctx.arc(x, y, sz * (1 + 0.9 * k), 0, 7); ctx.fill();
       }
-      // wybuch cząstek z uderzenia
-      for (let j = ko.i; j >= 0 && t - bt.kicks[j].t < 1.5; j--) {
-        const kk = bt.kicks[j]; if (kk.s < 0.55) continue; const tau = t - kk.t, u = tau / 1.5, n = Math.round(10 + 22 * kk.s);
+      for (let j = ko.i; j >= 0 && t - bt.kicks[j].t < 1.2; j--) {
+        const kk = bt.kicks[j]; if (kk.s < 0.6) continue; const tau = t - kk.t, u = tau / 1.2, n = Math.round(8 + 14 * kk.s);
         for (let q = 0; q < n; q++) {
-          const ang = hash(j * 31 + q * 7 + 1) * 6.283, spd = (120 + hash(j * 17 + q * 3 + 5) * 460) * kk.s * S1 / 720, g = fx === 'dust' ? 20 : 180 * S1 / 720;
-          const x = cx + Math.cos(ang) * spd * tau * (1 - 0.3 * tau) , y = cy + Math.sin(ang) * spd * tau * (1 - 0.3 * tau) + 0.5 * g * tau * tau * (fx === 'dust' ? -0.2 : 1);
-          ctx.fillStyle = hexA(q % 3 ? pal.accent : pal.accent2, Math.pow(1 - u, 1.5) * 0.9); ctx.beginPath(); ctx.arc(x, y, (1 + hash(q + j) * 2.6) * S1 / 720 * (1 - 0.5 * u), 0, 7); ctx.fill();
+          const ang = hash(j * 31 + q * 7 + 1) * 6.283, spd = (90 + hash(j * 17 + q * 3 + 5) * 300) * kk.s * S1 / 720;
+          const x = cx + Math.cos(ang) * spd * tau * (1 - 0.35 * tau), y = cy + Math.sin(ang) * spd * tau * (1 - 0.35 * tau);
+          ctx.fillStyle = 'rgba(255,240,220,' + Math.pow(1 - u, 1.5) * 0.8 + ')'; ctx.beginPath(); ctx.arc(x, y, (1 + hash(q + j) * 2) * S1 / 720 * (1 - 0.5 * u), 0, 7); ctx.fill();
         }
       }
       ctx.globalCompositeOperation = 'source-over';
-      // cienkie słupki widma przy dole
-      if (freq) {
-        const NB = vert ? 36 : 72, bw = W / NB, base = H - (vert ? H * 0.018 : H * 0.028); ctx.globalCompositeOperation = 'lighter';
-        for (let i = 0; i < NB; i++) { const bin = Math.floor(1 + Math.pow(i / NB, 1.6) * 140), v = Math.min(1, freq[bin] / 255 * 1.2), hh = Math.max(2, v * H * 0.09); ctx.fillStyle = hexA(pal.accent, 0.12 + 0.4 * v); ctx.fillRect(i * bw + bw * 0.2, base - hh, bw * 0.6, hh); }
-        ctx.globalCompositeOperation = 'source-over';
-      }
-      // logo: pulsuje na stopę
-      if (R.logo) { const sc = 1 + 0.085 * Math.min(1.1, k) + 0.025 * b; ctx.globalAlpha = 1; drawLogo(ctx, R.logo, cx, cy, box, sc); }
-      // błysk na mocnym uderzeniu
-      const fl = Math.max(0, k - 0.6) * 0.16; if (fl > 0.004) { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = hexA(pal.accent, fl); ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; }
-      // napisy z tekstu
-      drawCaps(ctx, R, t, W, H, vert);
-      // tytuł i nazwa kanału
+      // 2. logo kanału pulsuje na stopę
+      if (R.logo) { const sc = 1 + 0.09 * Math.min(1.1, k) + 0.025 * b; drawLogo(ctx, R.logo, cx, cy, box, sc); }
+      // 4. tytuł i nazwa kanału na dole
       const fa = Math.min(1, rel / 0.7); ctx.globalAlpha = fa; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
-      const tpx = vert ? W * 0.085 : H * 0.07; ctx.font = font(tpx, 800);
-      let tl = wrap(ctx, (R.title || '').toUpperCase(), W * (vert ? 0.88 : 0.8)); if (tl.length > 2) tl = tl.slice(0, 2);
-      const ty = vert ? H * 0.855 : H * 0.865, lh = tpx * 1.05, ysS = ty - (tl.length - 1) * lh;
-      ctx.lineWidth = tpx * 0.16; ctx.strokeStyle = 'rgba(0,0,0,.9)';
-      tl.forEach((l, i) => { const y = ysS + i * lh; ctx.strokeText(l, W / 2, y); ctx.fillStyle = '#f2f2f2'; ctx.fillText(l, W / 2, y); });
-      const npx = tpx * 0.42; ctx.font = font(npx, 700); const nm = (p.name || '').toUpperCase().split('').join(' '); ctx.lineWidth = npx * 0.2; const ny = ty + npx * 1.7;
-      ctx.strokeText(nm, W / 2, ny); ctx.fillStyle = pal.accent; ctx.fillText(nm, W / 2, ny); ctx.globalAlpha = 1;
-      // zakończenie
-      const tail = o.short ? 2.2 : 5;
-      if (rel > total - tail) {
-        const a = Math.min(1, (rel - (total - tail)) / 0.6), px = vert ? W * 0.07 : H * 0.06; ctx.globalAlpha = a; ctx.font = font(px, 800); ctx.lineWidth = px * 0.18; ctx.strokeStyle = 'rgba(0,0,0,.88)';
-        const msg = o.short ? (pl ? 'Pełny utwór na kanale' : 'Full track on the channel') : (pl ? 'Subskrybuj kanał' : 'Subscribe'); const yy = vert ? H * 0.12 : H * 0.14;
-        ctx.strokeText(msg, W / 2, yy); ctx.fillStyle = pal.accent; ctx.fillText(msg, W / 2, yy);
-        const hd = p.handle ? (p.handle[0] === '@' ? p.handle : '@' + p.handle) : ''; ctx.font = font(px * 0.6, 600); ctx.strokeText(hd, W / 2, yy + px * 1.05); ctx.fillStyle = '#f2f2f2'; ctx.fillText(hd, W / 2, yy + px * 1.05); ctx.globalAlpha = 1;
-      }
-      ctx.fillStyle = hexA(pal.accent, 0.95); ctx.fillRect(0, H - 3, W * Math.min(1, rel / total), 3);
+      ctx.shadowColor = 'rgba(0,0,0,.85)'; ctx.shadowBlur = S1 * 0.025;
+      const tpx = vert ? W * 0.07 : H * 0.055; ctx.font = font(tpx, 800);
+      let tl = wrap(ctx, (R.title || '').toUpperCase(), W * (vert ? 0.86 : 0.7)); if (tl.length > 2) tl = tl.slice(0, 2);
+      const lh = tpx * 1.05, ty = (vert ? H * 0.9 : H * 0.9) - (tl.length - 1) * lh;
+      ctx.fillStyle = '#fff'; tl.forEach((l, i) => ctx.fillText(l, W / 2, ty + i * lh));
+      const npx = tpx * 0.42; ctx.font = font(npx, 700); const nm = (p.name || '').toUpperCase().split('').join(' ');
+      ctx.fillStyle = 'rgba(255,255,255,.82)'; ctx.fillText(nm, W / 2, ty + (tl.length - 1) * lh + npx * 1.9);
+      ctx.shadowBlur = 0; ctx.globalAlpha = 1;
       ctx.restore();
     };
   };
@@ -155,11 +124,9 @@
     const im = heroes[(sel + v) % heroes.length], logo = R.logo, S1 = Math.min(W, H);
     ctx.fillStyle = pal.bg; ctx.fillRect(0, 0, W, H);
     cover(ctx, im, W, H, v === 2 ? 1.25 : 1.1, v === 1 ? -W * 0.06 : 0, 0);
-    ctx.fillStyle = 'rgba(0,0,0,.38)'; ctx.fillRect(0, 0, W, H);
-    ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = hexA(pal.accent2, 0.25); ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over';
-    const vg = ctx.createRadialGradient(W / 2, H / 2, S1 * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.72)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    { const bg = ctx.createLinearGradient(0, H * 0.45, 0, H); bg.addColorStop(0, 'rgba(0,0,0,0)'); bg.addColorStop(1, 'rgba(0,0,0,.55)'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H); }
     const words = (R.thumbWords || R.title || '').toUpperCase().split(/\s+/).filter(Boolean).slice(0, 3);
-    const glow = (x, y, r, a) => { const g = ctx.createRadialGradient(x, y, r * 0.1, x, y, r); g.addColorStop(0, hexA(pal.accent, a)); g.addColorStop(1, hexA(pal.accent, 0)); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; };
+    const glow = (x, y, r, a) => { return; const g = ctx.createRadialGradient(x, y, r * 0.1, x, y, r); g.addColorStop(0, hexA(pal.accent, a)); g.addColorStop(1, hexA(pal.accent, 0)); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; };
     const face = (px) => { ctx.font = font(px, 800); };
     const txt = (s, x, y, px, fill) => { face(px); ctx.lineJoin = 'round'; ctx.lineWidth = px * 0.14; ctx.strokeStyle = 'rgba(0,0,0,.92)'; ctx.strokeText(s, x, y); ctx.fillStyle = fill || pal.accent; ctx.fillText(s, x, y); };
     const fit = (arr, maxW, start) => { let px = start; for (; px > 50; px -= 6) { face(px); if (Math.max(...arr.map((w) => ctx.measureText(w).width)) < maxW) break; } return px; };
@@ -205,16 +172,17 @@
 
   /* ---------- trzy tła do wyboru ---------- */
   const SCENES = {
-    warhead: ['ruined industrial forge, molten metal glow, drifting embers, heavy smoke', 'empty night highway under a storm, orange sodium lights, rain on asphalt', 'dark underground gym hall lit by a single red light, steel racks, chalk dust in the air', 'wall of massive speaker stacks in a dark warehouse, cracked cones, dust floating in beams of orange light', 'rocket silo at night, countdown glow, fog and sparks'],
+    warhead: ['powerlifter gripping a loaded barbell before a heavy lift, chalk dust in the air, gym lit by overhead lamps', 'close-up of chalked hands wrapped around a thick steel bar, sweat and dust in hard side light', 'car at night on an empty highway with its trunk full of subwoofers, rain and city lights', 'massive wall of speaker stacks with a lone figure in front, dust in the light beams'],
     melodia: ['stormy battlefield at dusk, torn banners, embers drifting', 'lone wolf silhouette on a rocky ridge, golden storm light', 'iron gate in a ruined fortress, teal fog and gold light', 'empty boxing ring under one hard light, smoke', 'blacksmith forge at night, sparks flying']
   };
   AI.heroes = async function (p, song, lines) {
-    const peopleOK = AI.peopleOK(p);
     const prompt = [
-      'Projektujesz 3 grafiki tła do teledysku muzycznego, które zostaną użyte jako jedno tło całego filmu.',
-      'Kanał: ' + p.name + '. Styl wizualny kanału: ' + p.visual + '. Gatunek: ' + p.dna.genre + '. Tytuł utworu: ' + (song.title || '') + '.',
-      lines.length ? 'Fragment tekstu utworu (dla nastroju):\n' + lines.slice(0, 14).join('\n') : '',
-      'Zwróć JSON {"scenes":["","",""]}: trzy RÓŻNE opisy kadru PO ANGIELSKU, każdy jedno zdanie (miejsce, atmosfera, światło, detale), pasujące do nastroju tego utworu. Zasady: środek kadru ciemniejszy i mało zagracony, bo tam wchodzi logo; bez tekstu, liter, logo i znaków wodnych; ' + (peopleOK ? 'najwyżej jedna postać, widoczna w całości z twarzą, z boku kadru, albo bez postaci' : 'bez ludzi') + '; trzy kompozycje wyraźnie różne od siebie.'
+      'Jesteś reżyserem teledysków. Zaprojektuj 3 różne grafiki, z których każda będzie jedynym tłem całego teledysku (logo i tytuł dojdą na wierzch, więc kadr ma być czytelny i efektowny sam w sobie).',
+      'Kanał: ' + p.name + ' (' + p.dna.genre + '). Tytuł utworu: ' + (song.title || '') + '.',
+      song.premise ? 'Założenie utworu: ' + song.premise : '', song.genreLabel ? 'Gatunek: ' + song.genreLabel : '', song.styleNote ? 'Charakter muzyki: ' + song.styleNote : '',
+      lines.length ? 'Tekst utworu:\n' + lines.slice(0, 40).join('\n') : '',
+      'Najpierw ustal, O CZYM jest ten utwór (temat, emocja, bohater, sytuacja). Każda grafika ma pokazywać TEN temat konkretnym, rozpoznawalnym obrazem, a nie ogólnym klimatem. Przykład: utwór motywacyjny na siłownię = zawodnik z gryfem w ciężkim treningu, dłonie w magnezji, talerze na sztandze, pot w świetle lampy; pusta hala bez ludzi nie pasuje do tematu.',
+      'Zwróć JSON {"scenes":["","",""]}: trzy RÓŻNE opisy kadru PO ANGIELSKU, każdy 1-2 zdania: główny motyw, miejsce, światło, ujęcie. Zasady: realistyczne fotograficzne ujęcie, ciekawa kompozycja i naturalne kolory; bez tekstu, liter, logo i znaków wodnych; ludzie dozwolone (np. sylwetka lub postać od tyłu albo z boku), jeśli pasują do tematu; trzy kompozycje wyraźnie różne: np. szerokie ujęcie, zbliżenie na detal, postać w akcji.'
     ].filter(Boolean).join('\n');
     const r = JSON.parse(String(await AI.gemini(prompt, { json: true, temp: 0.9 })).replace(/^```\w*\n?|```$/g, '').trim());
     const arr = (Array.isArray(r) ? r : r.scenes || []).map(String).filter((x) => x.length > 8).slice(0, 3);
@@ -222,7 +190,7 @@
     return arr;
   };
   const shuffle = (a) => a.slice().sort(() => Math.random() - 0.5);
-  const heroPrompt = (p, scene) => scene + '. ' + p.visual + '. Wide cinematic composition, dark centered area, no text, no letters, no watermark.';
+  const heroPrompt = (p, scene) => scene + '. Photorealistic cinematic photograph, natural rich colors, striking composition, shallow depth of field, high detail. No text, no letters, no logos, no watermark.';
   S.makeHeroes = async function (id, say, notes) {
     const s = App.song(id), p = App.profile(s.profileId), M = S.mem(id), key = App.ai.hasKey();
     let scenes = null; const lines = M.caps && M.caps.length ? M.caps.map((c) => c.text) : S.lines(s.lyrics);
