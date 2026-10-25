@@ -135,10 +135,12 @@
     ].join('\n');
   };
   G.stylePrompt = function (dec, f, o, theme) {
+    const hint = (o && o.hint) || '';
     const lang = o.lang === 'pl' ? 'polski' : o.lang === 'en' ? 'angielski' : 'ten sam język, który słychać w nagraniu';
     return [
       'Jesteś ekspertem od promptów do Suno (v4.5 i nowsze). Poniżej pełna dekompozycja piosenki, którą użytkownik lubi. Zamień ją na pola Suno, które dadzą utwór W TYM SAMYM STYLU I BRZMIENIU (nie kopię melodii ani tekstu).',
       'DEKOMPOZYCJA:\n' + JSON.stringify(dec),
+      hint ? 'WSKAZÓWKA UŻYTKOWNIKA (PEWNIK, ma pierwszeństwo przed dekompozycją, gatunek i wokal z niej wpisz na początku Styles): ' + hint : '',
       'REGUŁY PISANIA POLA STYLES (kluczowe dla jakości):',
       '- po angielsku, rozdzielone przecinkami, bez nazw artystów i zespołów;',
       '- Suno najmocniej słucha PIERWSZYCH haseł: zacznij od gatunku i podgatunku (najdokładniejszych), potem tempo "' + (dec.tempo && dec.tempo.bpm ? dec.tempo.bpm : f.bpm) + ' BPM" i feel, potem 3 najważniejsze cechy z "signature", potem wokal (płeć, barwa, sposób), potem perkusja, bas, gitary/klawisze, potem miks i produkcja;',
@@ -153,8 +155,9 @@
       'Zwróć tylko JSON: {"variants":[{"label":"Bardzo podobny","styles":"","exclude":"","weirdness":25,"influence":85},{"label":"Luźniejszy","styles":"","exclude":"","weirdness":40,"influence":65},{"label":"Mocniejszy","styles":"","exclude":"","weirdness":35,"influence":80}],"structure_tags":[""],"tip":"","title":"","lyrics":""}'
     ].join('\n');
   };
-  G.checkPrompt = function (variants, dec) {
+  G.checkPrompt = function (variants, dec, hint) {
     return [
+      hint ? 'WSKAZÓWKA UŻYTKOWNIKA (PEWNIK, nie podważaj jej, nie zmieniaj gatunku ani wokalu wskazanego przez użytkownika): ' + hint : '',
       'Posłuchaj ponownie tej piosenki. Poniżej propozycje pola Styles dla Suno, które mają dać utwór o takim samym brzmieniu. Najpierw oceń na słuch, czy gatunek i epoka z propozycji naprawdę pasują do nagrania (np. czy to nie rap/trap/pop zamiast „elektronicznego”, czy w ogóle słychać syntezatory, czy epoka się zgadza). Potem POPRAW: usuń hasła, których w nagraniu nie słychać lub które są sprzeczne z nagraniem (np. zły gatunek, zły wokal, złe tempo, zły bas), dodaj brakujące najbardziej charakterystyczne cechy, ułóż hasła od najważniejszego. Zachowaj angielski, przecinki, brak nazw artystów, limity (wariant 1: do 950 znaków, wariant 2: do 400, wariant 3: do 950).',
       'PROPOZYCJE:\n' + JSON.stringify(variants.map((v) => ({ label: v.label, styles: v.styles, exclude: v.exclude }))),
       'Zwróć tylko JSON: {"verdict":"jedno zdanie po polsku: co się zgadzało, co poprawiono","variants":[{"label":"","styles":"","exclude":""}]}'
@@ -173,7 +176,9 @@
     const part = [{ inline_data: { mime_type: 'audio/wav', data } }];
     const hint = (o && o.hint) || '';
     say('1/4 Gemini robi protokół odsłuchu (co faktycznie słychać)…');
-    let log = null; try { log = J(await App.ai.gemini(G.listenPrompt(an, f, hint), { json: true, temp: 0.1, parts: part })); } catch (e) { log = null; }
+    const lp = G.listenPrompt(an, f, hint), rs = await Promise.allSettled([0.15, 0.5, 0.8].map((tp) => App.ai.gemini(lp, { json: true, temp: tp, parts: part })));
+    const logs = rs.filter((x) => x.status === 'fulfilled').map((x) => { try { return J(x.value); } catch (e) { return null; } }).filter(Boolean);
+    let log = logs.length ? logs[0] : null; if (logs.length > 1) log = { glowny: logs[0], niezalezne_odsluchy: logs.slice(1), uwaga: 'Kilka niezależnych odsłuchów tego samego nagrania. Wnioski zgodne w większości odsłuchów traktuj jako pewne; przy rozbieżności wybierz tę wersję, którą lepiej potwierdzają konkretne dźwięki (np. stopa 808, hi-haty, rap vs śpiew).' };
     say('2/4 Gemini rozkłada piosenkę na części…');
     const dec = J(await App.ai.gemini(G.decompPrompt(an, f, log, hint), { json: true, temp: 0.1, parts: part }));
     if (!dec || !dec.genre) throw new Error('Gemini nie rozłożył nagrania. Spróbuj ponownie.');
@@ -185,7 +190,7 @@
     let verdict = '';
     try {
       say('4/4 Gemini sprawdza gatunek i styl na słuch i poprawia…');
-      const ck = J(await App.ai.gemini(G.checkPrompt(vs, dec), { json: true, temp: 0.3, parts: part }));
+      const ck = J(await App.ai.gemini(G.checkPrompt(vs, dec, hint), { json: true, temp: 0.3, parts: part }));
       verdict = str(ck.verdict);
       (ck.variants || []).forEach((c, i) => { if (c && c.styles && vs[i]) { vs[i].styles = String(c.styles).trim(); if (c.exclude) vs[i].exclude = String(c.exclude).trim(); } });
     } catch (e) { verdict = ''; }
@@ -311,19 +316,21 @@
     const o = st.opts, hasKey = App.ai.hasKey();
     root.appendChild(h('p', { class: 'muted' }, 'Wgraj piosenkę, którą lubisz (mp3 z telefonu). Gemini posłucha całego utworu, aplikacja zmierzy tempo, tonację i brzmienie, rozłoży piosenkę na części (rytm, bas, gitary, wokal, miks, budowa) i zamieni to w gotowe pola do Suno. Dostajesz styl, a nie kopię: bez nazw artystów, bez cytowania tekstu.'));
     const fileIn = h('input', { type: 'file', accept: 'audio/*,.mp3,.wav,.m4a', onchange: (e) => { st.rfile = e.target.files[0] || null; rerender(); } });
+    const GENRES = ['Rap / trap', 'Hip-hop boom bap', 'UK drill', 'Rock', 'Metal', 'Pop', 'Elektronika / EDM', 'R&B / soul', 'Ballada', 'Orkiestrowy / filmowy'];
+    const gchips = h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Gatunek, jeśli go znasz (wtedy Gemini go nie zgaduje)'), h('div', { class: 'row-btns' }, GENRES.map((x) => K.chip(x, st.rgenre === x, () => { st.rgenre = st.rgenre === x ? '' : x; rerender(); }))));
     const hint = h('textarea', { rows: 2, placeholder: 'Co wiesz o tym utworze (opcjonalnie): gatunek, wokal, instrumenty. Np. „UK drill, męski rap, pianino i sample, bez syntezatorów”. Gemini potraktuje to jako pewnik.', value: st.rhint || '', oninput: (e) => { st.rhint = e.target.value; } });
     const theme = h('textarea', { rows: 2, placeholder: 'Twój pomysł na temat tekstu (opcjonalnie), np. trening o piątej rano. Bez pomysłu Gemini wymyśli własny tekst.', value: st.rtheme, oninput: (e) => { st.rtheme = e.target.value; } });
     const seg = (label, list, key) => h('div', { class: 'stack' }, h('span', { class: 'flabel' }, label), h('div', { class: 'row-btns' }, list.map((x) => K.chip(x[1], o[key] === x[0], () => { o[key] = x[0]; rerender(); }))));
     const go = async () => {
       if (st.busy) return; if (!st.rfile) { toast('Najpierw wybierz plik z piosenką.'); return; }
       st.busy = true; st.err = ''; st.status = ''; rerender();
-      try { st.ref = await G.analyzeRef(st.rfile, Object.assign({}, o, { hint: (st.rhint || '').trim() }), st.rtheme.trim(), (m) => { st.status = m; rerender(); }); App.state.quick.unshift(st.ref); App.state.quick = App.state.quick.slice(0, 30); App.save(); }
+      try { st.ref = await G.analyzeRef(st.rfile, Object.assign({}, o, { hint: [st.rgenre ? 'Gatunek: ' + st.rgenre + '.' : '', (st.rhint || '').trim()].filter(Boolean).join(' ') }), st.rtheme.trim(), (m) => { st.status = m; rerender(); }); App.state.quick.unshift(st.ref); App.state.quick = App.state.quick.slice(0, 30); App.save(); }
       catch (e) { st.err = e.message || 'Błąd'; }
       st.busy = false; st.status = ''; rerender();
     };
     root.appendChild(h('div', { class: 'compose' },
       h('label', { class: 'btn big ghost filebtn' }, icon('plus', 18), st.rfile ? 'Wybrany: ' + st.rfile.name : 'Wybierz plik z piosenką', fileIn),
-      hint, theme, seg('Język nowego tekstu', [['auto', 'Jak w piosence'], ['pl', 'Polski'], ['en', 'Angielski']], 'lang'),
+      gchips, hint, theme, seg('Język nowego tekstu', [['auto', 'Jak w piosence'], ['pl', 'Polski'], ['en', 'Angielski']], 'lang'),
       hasKey ? h('button', { class: 'btn big', disabled: st.busy ? 'true' : null, onclick: go }, icon('spark', 18), st.busy ? (st.status || 'Analizuję…') : 'Analizuj dla Suno (styl + nowy tekst)')
         : h('div', { class: 'warnbox' }, h('p', null, 'Ta funkcja wymaga klucza Gemini (Ustawienia → Klucz Gemini), bo to Gemini słucha nagrania.'))));
     root.appendChild(h('p', { class: 'muted small' }, 'Plik zostaje na telefonie. Do Gemini idzie jednorazowo cały utwór (do 5 minut), bez zapisywania. Analiza to 3 zapytania i trwa do minuty.'));
@@ -336,7 +343,7 @@
       const dr = d.drums || {}, bs = d.bass || {}, gt = d.guitars || {}, vc = d.vocals || {}, mx = d.mix || {}, tp = d.tempo || {}, ky = d.key || {};
       root.appendChild(h('h3', { class: 'sec' }, 'Pełna dekompozycja „' + r.name + '”'));
       const grid = h('div', { class: 'dgrid' }); root.appendChild(grid);
-      grid.appendChild(sec('Gatunek i tempo', row('Gatunek', [d.genre, d.subgenre].filter(Boolean).join(' / ')), row('Dlaczego ten gatunek', d.genre_evidence), row('Czym to NIE jest', r.log && r.log.not_genres ? [].concat(r.log.not_genres).map((x) => str(x.genre) + ' (' + str(x.why) + ')').join('; ') : ''), row('Korzenie brzmienia', d.lineage), row('Epoka', d.era), row('Tempo', (tp.bpm || f.bpm) + ' BPM, ' + [tp.feel, tp.groove].filter(Boolean).join(', ') + ' (algorytm: ' + f.bpm + ')'), row('Tonacja', [str(ky.tonic), str(ky.mode)].filter(Boolean).join(' ') + (f.key ? ' (pomiar: ' + f.key + ')' : '')), row('Harmonia', ky.harmony)));
+      grid.appendChild(sec('Gatunek i tempo', row('Gatunek', [d.genre, d.subgenre].filter(Boolean).join(' / ')), row('Dlaczego ten gatunek', d.genre_evidence), row('Czym to NIE jest', (r.log && (r.log.not_genres || (r.log.glowny && r.log.glowny.not_genres))) ? [].concat(r.log.not_genres || r.log.glowny.not_genres).map((x) => str(x.genre) + ' (' + str(x.why) + ')').join('; ') : ''), row('Korzenie brzmienia', d.lineage), row('Epoka', d.era), row('Tempo', (tp.bpm || f.bpm) + ' BPM, ' + [tp.feel, tp.groove].filter(Boolean).join(', ') + ' (algorytm: ' + f.bpm + ')'), row('Tonacja', [str(ky.tonic), str(ky.mode)].filter(Boolean).join(' ') + (f.key ? ' (pomiar: ' + f.key + ')' : '')), row('Harmonia', ky.harmony)));
       grid.appendChild(sec('Rytm i perkusja', row('Brzmienie zestawu', dr.kit_sound), row('Wzór', dr.pattern), row('Dźwięki', dr.sounds)));
       grid.appendChild(sec('Bas', row('Rodzaj', bs.type), row('Charakter', bs.character), row('Rola', bs.role)));
       grid.appendChild(sec('Gitary, klawisze, efekty', row('Gitary rytmiczne', gt.rhythm), row('Gitary prowadzące', gt.lead), row('Brzmienie gitar', gt.tone), row('Klawisze i syntezatory', d.keys_synths), row('Efekty i sample', d.fx_samples)));
