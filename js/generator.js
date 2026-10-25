@@ -119,7 +119,7 @@
     const bassClass = low < 19 ? 'light' : low > 32 ? 'heavy' : 'medium', bright = c > 2500 || hi > 40 ? 'bright' : c < 1700 ? 'dark' : 'balanced';
     if (bassClass === 'light') { ex.push('heavy bass', 'deep sub bass', 'bass boosted', 'boomy', 'muddy low end', 'distorted 808'); notes.push('bas jest LEKKI (tylko ' + Math.round(low) + '% energii poniżej 250 Hz); nie opisuj go jako ciężki, głęboki ani dudniący'); }
     if (bassClass === 'heavy') { notes.push('bas jest bardzo mocny (' + Math.round(low) + '% energii poniżej 250 Hz)'); }
-    if (bright === 'bright') { ex.push('lo-fi', 'muffled'); notes.push('dużo energii w górze (środek ciężkości ' + c + ' Hz, ' + Math.round(hi) + '% powyżej 2 kHz): to mogą być hi-haty, smyczki, chór lub wokal. NIE wnioskuj z tego gatunku pop; gatunek rozstrzygają bębny, bas i sposób wykonania wokalu'); opisz go jako jasny, czysty, z wyraźną górą i wokalem z przodu'); }
+    if (bright === 'bright') { ex.push('lo-fi', 'muffled'); notes.push('dużo energii w górze (środek ciężkości ' + c + ' Hz, ' + Math.round(hi) + '% powyżej 2 kHz): to mogą być hi-haty, smyczki, chór lub wokal. NIE wnioskuj z tego gatunku pop; gatunek rozstrzygają bębny, bas i sposób wykonania wokalu'); }
     if (bright === 'dark') { notes.push('miks jest ciemny (środek ciężkości ' + c + ' Hz)'); }
     return { bassClass, bright, add, ex, notes, low, hi };
   };
