@@ -81,7 +81,7 @@
       // 1. grafika: widoczna cały czas, bez filtrów; delikatnie pulsuje na uderzeniach basu
       const zoom = 1.04 + 0.02 * Math.min(1, rel / Math.max(1, total)) + 0.035 * k;
       cover(ctx, R.hero, W, H, zoom, 0, 0);
-      const cx = W / 2, cy = vert ? H * 0.4 : H * 0.42, box = vert ? W * 0.42 : H * 0.34;
+      const cx = W / 2, cy = vert ? H * 0.77 : H * 0.72, box = vert ? W * 0.24 : H * 0.2;
       // 3. cząsteczki: jasne, drobne, unoszą się; na uderzeniu basu robią się większe i jaśniejsze
       ctx.globalCompositeOperation = 'lighter';
       for (let i = 0; i < N_AMB; i++) {
@@ -107,7 +107,7 @@
       ctx.shadowColor = 'rgba(0,0,0,.85)'; ctx.shadowBlur = S1 * 0.025;
       const tpx = vert ? W * 0.07 : H * 0.055; ctx.font = font(tpx, 800);
       let tl = wrap(ctx, (R.title || '').toUpperCase(), W * (vert ? 0.86 : 0.7)); if (tl.length > 2) tl = tl.slice(0, 2);
-      const lh = tpx * 1.05, ty = (vert ? H * 0.9 : H * 0.9) - (tl.length - 1) * lh;
+      const lh = tpx * 1.05, ty = (vert ? H * 0.9 : H * 0.88) - (tl.length - 1) * lh;
       ctx.fillStyle = '#fff'; tl.forEach((l, i) => ctx.fillText(l, W / 2, ty + i * lh));
       const npx = tpx * 0.42; ctx.font = font(npx, 700); const nm = (p.name || '').toUpperCase().split('').join(' ');
       ctx.fillStyle = 'rgba(255,255,255,.82)'; ctx.fillText(nm, W / 2, ty + (tl.length - 1) * lh + npx * 1.9);
@@ -123,41 +123,29 @@
     const ctx = c.getContext('2d'), p = R.p, pal = p.palette, heroes = R.heroes && R.heroes.length ? R.heroes : [R.hero], sel = R.heroSel || 0;
     const im = heroes[(sel + v) % heroes.length], logo = R.logo, S1 = Math.min(W, H);
     ctx.fillStyle = pal.bg; ctx.fillRect(0, 0, W, H);
-    cover(ctx, im, W, H, v === 2 ? 1.25 : 1.1, v === 1 ? -W * 0.06 : 0, 0);
+    cover(ctx, im, W, H, 1.02, 0, 0);
     { const bg = ctx.createLinearGradient(0, H * 0.45, 0, H); bg.addColorStop(0, 'rgba(0,0,0,0)'); bg.addColorStop(1, 'rgba(0,0,0,.55)'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H); }
     const words = (R.thumbWords || R.title || '').toUpperCase().split(/\s+/).filter(Boolean).slice(0, 3);
     const glow = (x, y, r, a) => { return; const g = ctx.createRadialGradient(x, y, r * 0.1, x, y, r); g.addColorStop(0, hexA(pal.accent, a)); g.addColorStop(1, hexA(pal.accent, 0)); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; };
     const face = (px) => { ctx.font = font(px, 800); };
     const txt = (s, x, y, px, fill) => { face(px); ctx.lineJoin = 'round'; ctx.lineWidth = px * 0.14; ctx.strokeStyle = 'rgba(0,0,0,.92)'; ctx.strokeText(s, x, y); ctx.fillStyle = fill || pal.accent; ctx.fillText(s, x, y); };
     const fit = (arr, maxW, start) => { let px = start; for (; px > 50; px -= 6) { face(px); if (Math.max(...arr.map((w) => ctx.measureText(w).width)) < maxW) break; } return px; };
-    ctx.textBaseline = 'alphabetic';
+    ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
+    const line = words.join(' '), sh = () => { ctx.shadowColor = 'rgba(0,0,0,.8)'; ctx.shadowBlur = S1 * 0.03; }, nsh = () => { ctx.shadowBlur = 0; };
+    const lg = (x, y, box) => { if (logo) drawLogo(ctx, logo, x, y, box, 1); };
+    const nm = (p.name || '').toUpperCase().split('').join(' ');
+    // v0: logo nad tytułem na dole (jak we wzorcu); v1: tytuł z lewej na dole, logo w rogu; v2: logo u góry, tytuł na dole
     if (!vertical) {
-      if (v === 0) {
-        glow(W / 2, H * 0.4, H * 0.7, 0.5); if (logo) drawLogo(ctx, logo, W / 2, H * 0.4, H * 0.66, 1);
-        const line = words.join(' '); let px = 150; for (; px > 50; px -= 6) { face(px); if (ctx.measureText(line).width < W - 140) break; }
-        ctx.textAlign = 'center'; txt(line, W / 2, H - 42, px, '#f2f2f2');
-      } else if (v === 1) {
-        glow(W * 0.76, H * 0.5, H * 0.8, 0.45); if (logo) drawLogo(ctx, logo, W * 0.76, H * 0.5, H * 0.78, 1);
-        const px = fit(words, W * 0.5, 190); ctx.textAlign = 'left'; const lh = px * 0.98, y0 = H / 2 + (words.length - 1) * lh / 2 + px * 0.34;
-        words.forEach((w, i) => txt(w, 60, y0 - (words.length - 1 - i) * lh, px, i === words.length - 1 ? pal.accent : '#f2f2f2'));
-      } else {
-        glow(W / 2, H * 0.5, H * 0.9, 0.35); if (logo) drawLogo(ctx, logo, W / 2, H * 0.17, H * 0.3, 1);
-        const line = words.join(' '); let px = 220; for (; px > 60; px -= 6) { face(px); if (ctx.measureText(line).width < W - 100) break; }
-        ctx.textAlign = 'center'; txt(line, W / 2, H * 0.74, px, pal.accent);
-      }
-      ctx.textAlign = 'left'; face(30); ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 6; const nm = (p.name || '').toUpperCase().split('').join(' '); ctx.strokeStyle = 'rgba(0,0,0,.85)'; if (v !== 1) { ctx.strokeText(nm, 40, 62); ctx.fillText(nm, 40, 62); }
+      const px0 = H * 0.115; let px = px0; for (; px > 40; px -= 4) { face(px); if (ctx.measureText(line).width < W * (v === 1 ? 0.62 : 0.8)) break; }
+      sh(); ctx.fillStyle = '#fff'; face(px);
+      if (v === 1) { ctx.textAlign = 'left'; ctx.fillText(line, W * 0.05, H * 0.9); lg(W * 0.9, H * 0.14, H * 0.2); }
+      else { ctx.textAlign = 'center'; ctx.fillText(line, W / 2, H * 0.9); lg(W / 2, v === 0 ? H * 0.68 : H * 0.13, H * (v === 0 ? 0.2 : 0.17)); }
+      face(H * 0.04); ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.textAlign = v === 1 ? 'left' : 'center'; ctx.fillText(nm, v === 1 ? W * 0.05 : W / 2, H * 0.96); nsh();
     } else {
-      if (v === 0) {
-        glow(W / 2, H * 0.36, W * 0.9, 0.5); if (logo) drawLogo(ctx, logo, W / 2, H * 0.36, W * 0.84, 1);
-        const px = fit(words, W - 120, 230); ctx.textAlign = 'center'; const lh = px * 0.98; words.forEach((w, i) => txt(w, W / 2, H - 150 - (words.length - 1 - i) * lh, px, i === words.length - 1 ? pal.accent : '#f2f2f2'));
-      } else if (v === 1) {
-        glow(W / 2, H * 0.24, W * 0.8, 0.45); if (logo) drawLogo(ctx, logo, W / 2, H * 0.24, W * 0.7, 1);
-        const px = fit(words, W - 120, 260); ctx.textAlign = 'left'; const lh = px * 0.98; words.forEach((w, i) => txt(w, 60, H * 0.62 + i * lh, px, i === 0 ? pal.accent : '#f2f2f2'));
-      } else {
-        glow(W / 2, H * 0.5, W * 1.1, 0.35); if (logo) drawLogo(ctx, logo, W / 2, H * 0.14, W * 0.42, 1);
-        const px = fit(words, W - 100, 300); ctx.textAlign = 'center'; const lh = px * 1.0; words.forEach((w, i) => txt(w, W / 2, H * 0.52 + (i - (words.length - 1) / 2) * lh + px * 0.34, px, pal.accent));
-      }
-      ctx.textAlign = 'center'; face(38); ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.fillStyle = 'rgba(255,255,255,.88)'; const nm = (p.name || '').toUpperCase().split('').join(' '); ctx.strokeText(nm, W / 2, H - 70); ctx.fillText(nm, W / 2, H - 70);
+      const arr = words.length > 1 && ctx.measureText ? words : words; let px = fit(arr, W * 0.8, 120);
+      sh(); ctx.fillStyle = '#fff'; face(px); ctx.textAlign = 'center'; const lh = px * 1.0, y1 = H * 0.9 - (arr.length - 1) * lh; arr.forEach((w, i) => ctx.fillText(w, W / 2, y1 + i * lh));
+      lg(W / 2, v === 1 ? H * 0.1 : y1 - px * 1.5, W * 0.26);
+      face(36); ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillText(nm, W / 2, H * 0.965); nsh();
     }
     return c;
   };
