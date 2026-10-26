@@ -18,15 +18,30 @@
     if (!best) throw new Error('Gemini: nie znalazłem dostępnego modelu dla tego klucza.');
     s.model = best; App.save(); return best;
   };
+  /* analiza nagrań: najpierw najmocniejszy dostępny model „pro”, a gdy go brak lub zawiedzie, zwykły flash */
+  AI.geminiPro = async function (prompt, opts) {
+    const s = App.state.settings;
+    try {
+      if (s.proModel === undefined || (s.proModel === '' && Date.now() - (s.proCheck || 0) > 864e5)) {
+        const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': s.gemini } });
+        const list = r.ok ? ((await r.json()).models || []).filter((m) => (m.supportedGenerationMethods || []).includes('generateContent')).map((m) => m.name.replace(/^models\//, '')) : [];
+        const ver = (n) => { const m = /^gemini-(\d+(?:\.\d+)?)-pro$/.exec(n); return m ? parseFloat(m[1]) : -1; };
+        s.proModel = list.filter((n) => ver(n) > 0).sort((x, y) => ver(y) - ver(x))[0] || ''; s.proCheck = Date.now(); App.save();
+      }
+      if (s.proModel && !(s.proBadUntil && Date.now() < s.proBadUntil)) return await AI.gemini(prompt, Object.assign({}, opts, { model: s.proModel, _noSwitch: true }));
+    } catch (e) { s.proBadUntil = Date.now() + 36e5; App.save(); }
+    return AI.gemini(prompt, opts);
+  };
   AI.gemini = async function (prompt, opts, tried) {
     const s = App.state.settings; tried = tried || [];
     if (!s.gemini) throw new Error('Brak klucza Gemini. Dodaj go w ustawieniach.');
-    const model = s.model || 'gemini-3.8-flash'; tried.push(model);
+    const model = (opts && opts.model) || s.model || 'gemini-3.8-flash'; tried.push(model);
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
     const body = { contents: [{ parts: ((opts && opts.parts) || []).concat([{ text: prompt }]) }], generationConfig: { temperature: (opts && opts.temp) || 0.95 } };
     if (opts && opts.json) body.generationConfig.responseMimeType = 'application/json';
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': s.gemini }, body: JSON.stringify(body) });
     if (!r.ok) {
+      if (opts && opts._noSwitch) throw new Error('model ' + model + ': ' + r.status);
       let m = r.status + '';
       try { const j = await r.json(); m = (j.error && j.error.message) || m; } catch (e) { /* ignore */ }
       if (/prepayment|credits are depleted/i.test(m)) throw new Error('Ten klucz Gemini należy do projektu z płatnymi rozliczeniami, a środki przedpłaty się skończyły. Utwórz darmowy klucz w projekcie bez rozliczeń: aistudio.google.com → Get API key → Create API key → projekt „Rezonans”. Wklej go w Ustawieniach. (Komunikat Google: „' + m.slice(0, 120) + '”)');
