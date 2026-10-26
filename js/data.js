@@ -10,7 +10,7 @@
     stats: { subs: 22, hours: 49.8, views: 5776 },
     brand: { logo: 'assets/logos/melodia-emblem.png', fx: 'dust', slogan: '' },
     visual: 'epic cinematic photograph, dark teal and gold color grade, volumetric light, smoke and embers, heroic, hyperreal, 35mm, no text, no watermark',
-    publish: { time: '20:30', note: 'Wrzucałeś dotąd między 20 a 22. Sprawdź w Studio, kiedy widzowie są online, i porównaj z wynikami.' },
+    publish: { short: { time: '18:00', time2: '12:30', note: 'Short z refrenem w dniu premiery o 18:00 (powrót z pracy, zapowiedź przed 20:30) i drugi, z innego fragmentu, następnego dnia o 12:30 (przerwa obiadowa). Sprawdź w Studio → Statystyki, kiedy widzowie są online.' }, time: '20:30', note: 'Wrzucałeś dotąd między 20 a 22. Sprawdź w Studio, kiedy widzowie są online, i porównaj z wynikami.' },
     dna: {
       genre: 'agresywny polski hip-hop i trap z orkiestrą oraz metalowy marsz wojenny',
       voice: 'męski baryton, rapowany',
@@ -102,7 +102,7 @@
     stats: { subs: 0, hours: 0, views: 0 },
     visual: 'dark cinematic photograph, black steel and molten orange glow, sparks and embers, heavy industrial atmosphere, volumetric smoke, hyperreal, 35mm, no text, no watermark',
     brand: { logo: 'assets/logos/warhead.png', fx: 'embers', slogan: 'Turn it up. Load the bar.' },
-    publish: { time: '23:30', note: 'Cel to widzowie z USA: 17:00 do 20:00 czasu wschodniego (ET), czyli ok. 23:00 do 2:00 w Polsce. Zaplanuj premierę w Studio z wyprzedzeniem.' },
+    publish: { short: { time: '22:00', time2: '01:00', note: 'USA to ok. 16:00 ET (po pracy i szkole) w dniu premiery, ok. 2 h przed filmem o 23:30. Drugi Short o 01:00 polskiego czasu to 19:00 ET, najmocniejsze godziny wieczorne w USA; zaplanuj go z góry w Studio (Shorty też można planować). Zacznij od tego i po dwóch tygodniach porównaj wyniki w Studio.' }, time: '23:30', note: 'Cel to widzowie z USA: 17:00 do 20:00 czasu wschodniego (ET), czyli ok. 23:00 do 2:00 w Polsce. Zaplanuj premierę w Studio z wyprzedzeniem.' },
     dna: {
       genre: 'symphonic heavy metal, industrial, dark rap and sub-bass electronic for night drives, the gym and raw energy',
       voice: 'aggressive male vocals: growl or shouted verses with a clean anthemic chorus, gang vocals on hooks, English lyrics',

@@ -487,6 +487,9 @@
     root.appendChild(guideBlock(p));
     root.appendChild(h('div', { class: 'list' }, week.map((w) => h('div', { class: 'row plan' + (w.d === td ? ' today' : ''), 'data-k': w.k }, h('i', { class: 'dot', 'aria-hidden': 'true' }), h('div', { class: 'row-m' }, h('b', null, w.n.replace(/^./, (c) => c.toUpperCase()) + ': ' + w.x), h('span', { class: 'muted' }, w.s))))));
     const time = h('input', { type: 'time', value: p.publish.time, onchange: (e) => { p.publish.time = e.target.value || p.publish.time; App.save(); toast('Godzina zapisana'); } });
+    const sh = p.publish.short = p.publish.short || { time: '18:00', time2: '12:30', note: 'Short zapowiadający film opublikuj kilka godzin przed premierą, drugi następnego dnia.' };
+    const stime = h('input', { type: 'time', value: sh.time, onchange: (e) => { sh.time = e.target.value || sh.time; App.save(); toast('Godzina Shorta zapisana'); } }), stime2 = h('input', { type: 'time', value: sh.time2 || '', onchange: (e) => { sh.time2 = e.target.value || sh.time2; App.save(); toast('Godzina Shorta zapisana'); } });
+    root.appendChild(h('section', { class: 'block' }, h('h3', null, 'Godziny Shortów'), field('Short 1: w dniu premiery (czas warszawski)', stime), field('Short 2: następnego dnia (czas warszawski)', stime2), h('p', { class: 'muted small' }, sh.note)));
     root.appendChild(h('section', { class: 'block' }, h('h3', null, 'Godzina premiery'), field('Czas warszawski', time), h('p', { class: 'muted small' }, p.publish.note),
       h('p', { class: 'muted small' }, 'Rzadziej i lepiej: YouTube ogranicza monetyzację treści powtarzalnych i masowych. Dwie dopracowane premiery tygodniowo to rozsądny rytm.')));
     return root;

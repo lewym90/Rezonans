@@ -70,8 +70,8 @@
         const items = [
           ['pl1', 'Dodaj film do playlisty serii i ustaw ekran końcowy na następny utwór.'],
           ['pin', 'Przypnij komentarz: ' + pack.pinned],
-          ['sh1', 'Opublikuj Short z refrenem i dodaj do niego „powiązany film” (Studio → Edycja Shorta). Tytuł Shorta: ' + (pack.shortTitles[0] || '')],
-          ['sh2', 'Zaplanuj drugi Short z innego fragmentu na kolejne dni.'],
+          ['sh1', 'Opublikuj Short z refrenem o ' + ((p.publish.short || {}).time || '18:00') + ' (czas warszawski, w dniu premiery) i dodaj do niego „powiązany film” (Studio → Edycja Shorta). Tytuł Shorta: ' + (pack.shortTitles[0] || '')],
+          ['sh2', 'Zaplanuj drugi Short z innego fragmentu na następny dzień o ' + ((p.publish.short || {}).time2 || '12:30') + '.'],
           ['cm', 'W pierwszej godzinie odpowiedz na komentarze.']];
         s.checks = s.checks || {};
         body = h('div', { class: 'stack' }, h('p', { class: 'muted' }, 'To 5 drobnych rzeczy, które zwiększają zasięg. Odhaczaj po kolei.'),

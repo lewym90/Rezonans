@@ -1,7 +1,7 @@
 (function () {
   const App = (window.App = window.App || {});
   const KEY = 'rezonans.v1';
-  App.version = 44;
+  App.version = 45;
   App.uid = (p) => (p || 'id') + '_' + Math.random().toString(36).slice(2, 9);
   App.state = {
     profiles: [], songs: [], activeProfile: 'melodia', tab: 'today',
@@ -24,7 +24,7 @@
     App.state.songs = (App.state.songs || []).filter((x) => x.profileId !== 'willa');
     App.DATA.profiles.forEach((d) => {
       const have = App.state.profiles.find((p) => p.id === d.id);
-      if (!have) App.state.profiles.push(App.clone(d)); else if (!have.brand) have.brand = App.clone(d.brand);
+      if (!have) App.state.profiles.push(App.clone(d)); else { if (!have.brand) have.brand = App.clone(d.brand); if (have.publish && !have.publish.short && d.publish && d.publish.short) have.publish.short = App.clone(d.publish.short); }
     });
     if (!App.state.profiles.find((p) => p.id === App.state.activeProfile)) App.state.activeProfile = App.state.profiles[0].id;
     App.state.settings = Object.assign({ gemini: '', yt: '', model: 'gemini-3.8-flash', img: 'https://rezonans-img.lewandowski-m-90.workers.dev/', ytClient: '43164945118-f2o3h3ko4vamm6oj27m2ajm8819p5okc.apps.googleusercontent.com' }, App.state.settings || {});
