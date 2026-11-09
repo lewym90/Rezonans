@@ -2,37 +2,37 @@
 
 Od pomysłu do publikacji: studio dla twórców muzyki z Suno. Aplikacja działa w przeglądarce (PWA), bez serwera i bez kosztów.
 
-## Co potrafi (etap 1)
-- **Kanały** z DNA (gatunek, motywy, symbole, style do Suno, dane z YouTube Studio). Start: Melodia Maszyny i Warhead Bass (@WARHEAD_BASS, po angielsku, USA). Kolory całej aplikacji dostosowują się do aktywnego kanału.
-- **Pomysł**: „Mam pomysł" (ocena dopasowania do kanału i wzmocnienie) albo „Zaskocz mnie" (propozycje z danych kanału).
-- **Pakiet dla Suno**: tytuł, prompt stylu (limit 1000 znaków), tekst (limit 5000), kontrola wulgaryzmów, prompt do dowolnego czatu AI. Opcjonalnie tekst z Gemini.
+Adres: https://lewym90.github.io/Rezonans/
+
+## Kanały
+- **Melodia Maszyny** (@MelodiaMaszyny, po polsku): agresywny polski rap i trap z orkiestrą, metalowy marsz. Motywacja i trening.
+- **Warhead Bass** (@WARHEAD_BASS, po angielsku, cel USA): symfoniczny heavy metal, industrial, dark rap, car bass.
+
+Każdy kanał ma DNA (gatunek, wokal, motywy, symbole, tagi, style do Suno, wnioski z YouTube Studio, gotowe pomysły), własne logo, kolory i godziny premier. Kolory całej aplikacji dostosowują się do aktywnego kanału.
+
+## Co potrafi
+- **Pomysł**: „Mam pomysł” (ocena dopasowania do kanału i wzmocnienie) albo „Zaskocz mnie” (propozycje z danych kanału, bez powtórek).
+- **Pakiet dla Suno z Gemini**: tytuł, 3 warianty Styles (Główny, Luźniejszy, Mocniejszy) z Exclude i suwakami Weirdness i Style Influence, pełny tekst z meta-tagami, kontrola jakości tekstu i wulgaryzmów, prompt do dowolnego czatu AI.
+- **Generator Suno**: „Z pomysłu” (jedno zdanie → komplet pól) i „Z piosenki” (analiza odwrotna: pomiar tempa, tonacji i brzmienia, protokół odsłuchu Gemini, dekompozycja, Styles, nowy tekst, porównanie wyniku z Suno ze wzorem).
+- **Kreator utworu** w 6 krokach: Suno, mp3, teledysk, publikacja, po premierze, wyniki po 7 dniach.
+- **Mam gotowy utwór**: wgraj mp3 zrobione poza aplikacją, a dostaniesz tytuły, opis z rozdziałami, tagi, napisy, tła, miniatury, teledysk 16:9 i Short.
 - **Pakiet publikacji**: tytuły, opis, hashtagi, tagi, przypięty komentarz, hooki do Shortów, harmonogram, miniatura.
-- **Plan tygodnia**, checklista z licznikiem, wyniki utworów i wnioski.
+- **Plan**: plan tygodnia, godziny premier i Shortów, import danych ze Studio, wnioski, droga do monetyzacji, przewodnik od A do Z.
 - **Import kanału** z YouTube (opcjonalny klucz YouTube Data API) albo z wklejonych tytułów.
+- Układ na telefon, tablet i laptop. Ekran nie gaśnie przy otwartej aplikacji.
+
+## Studio teledysku
+Wczytaj mp3, a aplikacja znajdzie tempo i refren, spisze napisy ze słuchu (Gemini) i przygotuje teledysk w stylu marki: jedna grafika w tle (3 propozycje pod temat utworu), logo kanału pulsujące na stopę, błysk, fale i cząstki w rytm basu, tytuł i nazwa kanału. Miniatury: 3 propozycje 16:9 i 3 propozycje 9:16, wybrana jest pierwszym kadrem filmu. Render filmu 16:9 i Shorta 9:16 z refrenu powstaje w przeglądarce. Obrazy generuje Worker z folderu `worker/` (Cloudflare Workers AI, FLUX schnell, darmowy limit). Adres Workera jest w Ustawieniach. Logo leżą w `assets/logos/`.
 
 ## Uruchomienie na GitHub Pages
-1. Utwórz nowe repozytorium na GitHubie i wgraj zawartość tego folderu (plik `index.html` w głównym katalogu).
-2. Settings → Pages → Source: *Deploy from a branch*, gałąź `main`, katalog `/ (root)`.
-3. Otwórz adres `https://TWOJ-LOGIN.github.io/NAZWA-REPO/` w Safari na iPhonie.
-4. Udostępnij → *Dodaj do ekranu początkowego*. Aplikacja otworzy się na pełnym ekranie jak natywna.
+1. Settings → Pages → Source: *Deploy from a branch*, gałąź `main`, katalog `/ (root)`.
+2. Otwórz adres w Safari na iPhonie.
+3. Udostępnij → *Dodaj do ekranu początkowego*. Aplikacja otworzy się na pełnym ekranie jak natywna.
 
 ## Klucze (opcjonalne, darmowe)
 Ustawienia w aplikacji. Klucze zostają w pamięci przeglądarki na Twoim urządzeniu, nie trafiają do repozytorium.
-- **Gemini** (aistudio.google.com): teksty piosenek, wzmacnianie pomysłów, ulepszanie opisów.
+- **Gemini** (aistudio.google.com): teksty, pakiety Suno, analiza nagrań, napisy ze słuchu, tła, opisy.
 - **YouTube Data API** (Google Cloud Console): import tytułów i wyświetleń kanału.
-
-## Kopia zapasowa
-Ustawienia → Pobierz kopię. Dane (kanały, utwory) są w localStorage tej przeglądarki.
-
-## Plan
-- Etap 2: studio teledysków (sceny z analizy utworu, ruch kamery, napisy w rytm, wizualizer, render 16:9 i 9:16).
-- Etap 3: odczyt screenów ze Studio YouTube i uczenie szablonów z wyników.
-
-## Struktura
-`index.html`, `css/app.css`, `js/` (data, store, engine, ai, ui, main), `sw.js`, `manifest.webmanifest`, `icons/`.
-
-## Studio teledysku
-W karcie utworu: „Studio teledysku”. Wczytaj mp3 z Suno, aplikacja znajdzie tempo i refren, ułoży cięcia w rytm, dopasuje napisy i wyrenderuje film 16:9, Short 9:16 oraz miniaturę. Obrazy generuje Worker z folderu `worker/` (Cloudflare Workers AI, darmowy limit). Adres Workera wpisz w Ustawieniach.
 
 ## Wysyłka na YouTube jako prywatny film
 1. Wejdź na console.cloud.google.com i utwórz projekt.
@@ -40,15 +40,27 @@ W karcie utworu: „Studio teledysku”. Wczytaj mp3 z Suno, aplikacja znajdzie 
 3. APIs & Services → OAuth consent screen → External → wypełnij nazwę aplikacji i swój e-mail. W sekcji Test users dodaj swój adres Google i zapisz. Zostaw aplikację w trybie Testing.
 4. Credentials → Create credentials → OAuth client ID → Web application. W Authorized JavaScript origins dodaj `https://lewym90.github.io`. Skopiuj Client ID.
 5. W aplikacji: Ustawienia → Google OAuth Client ID → wklej.
-6. W Studio teledysku po renderze kliknij „Wyślij na YouTube jako prywatny”. W oknie Google wybierz konto i kanał (Melodia Maszyny albo Willa Hayes). Film trafia jako prywatny, publiczny ustawiasz sam w YouTube Studio.
+6. W Studio teledysku po renderze kliknij „Wyślij na YouTube jako prywatny”. W oknie Google wybierz konto i kanał (Melodia Maszyny albo Warhead Bass). Aplikacja sprawdza, na jaki kanał trafi film, ustawia miniaturę i dodaje film do playlisty. Publiczny ustawiasz sam w YouTube Studio.
 
 Projekty API bez weryfikacji i tak zawsze wgrywają filmy jako prywatne.
 
 ## Dane ze Studio
 Plan → Importuj dane ze Studio. Wybierz pliki ZIP lub CSV wyeksportowane z Analityki (Tryb zaawansowany, zakres Cały czas). Aplikacja odświeży statystyki, wnioski i przewodnik.
 
+## Kopia zapasowa
+Ustawienia → Pobierz kopię. Dane (kanały, utwory) są w localStorage tej przeglądarki.
 
-## Wersja 30
-- Teledysk w stylu „marka”: jedna wybrana grafika (3 propozycje), logo kanału pulsujące na stopę, fale uderzeniowe i cząstki w rytm basu, tytuł i nazwa kanału. Logo leżą w `assets/logos/`.
-- Miniatury: 3 propozycje 16:9 i 3 propozycje 9:16, wybrana jest pierwszym kadrem filmu.
-- „Mam gotowy utwór” (zakładka Utwory): wgraj mp3 zrobiony poza aplikacją, a dostaniesz tytuły, opis z rozdziałami, tagi, napisy, tła, miniatury, teledysk 16:9 i Short.
+## Plan
+- Etap 3: odczyt zrzutów ekranu ze Studio YouTube i uczenie szablonów z wyników.
+
+## Struktura
+`index.html`, `css/app.css`, `js/` (data, store, engine, ai, ui, analytics, studio, brand, own, wizard, generator, awake, main), `worker/`, `assets/logos/`, `sw.js`, `manifest.webmanifest`, `icons/`.
+
+## Historia zmian (skrót)
+- v29: zawsze nowy tekst do analizowanego utworu, układ na tablet i laptop.
+- v30: Warhead Bass zamiast Willa Hayes, teledysk w stylu marki, miniatury 3+3, ścieżka „Mam gotowy utwór”.
+- v31: nowe logo z przezroczystością.
+- v32: pełny pakiet Suno z Gemini dla kanału (3 warianty Styles, Exclude, suwaki, cały tekst z meta-tagami).
+- v33: przycisk „Mam gotowy utwór” na ekranie Dziś i w Pomyśle.
+- v34–v37: jeden styl teledysku (tło i logo w rytm basu, błysk na uderzeniach), tła pod temat utworu, miniatury ze słów tytułu.
+- v38–v46: rzetelniejsza analiza „Z piosenki” (protokół odsłuchu, 3 niezależne odsłuchy, wskazówka gatunku i pole BPM, lepszy pomiar tempa, słownik haseł Suno, bez popowych dopisków przy rapie), model pro do analizy nagrań, godziny Shortów.
