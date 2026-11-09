@@ -79,6 +79,10 @@ Ustawienia → Pobierz kopię. Dane (kanały, utwory) są w localStorage tej prz
 - 4 szablony animacji (Marka, Słupki, Pierścień, Minimal), wizualizery dźwięku (słupki, fala, pierścień), układ logo i tytułu, intensywność efektów, kolor efektów, czcionka tytułu.
 - Presety zapisywane dla kanału; własna grafika jako tło; podgląd miniatury w rzeczywistych rozmiarach YouTube.
 
+## Wersja 52: Rezonans Intelligence i Experiment Lab
+- Intelligence (Wyniki): porównanie wyników utworów według wejścia wokalu, długości, pierwszego refrenu, tempa, długości tytułu, godziny premiery i stylu. Każda rekomendacja ma źródło, liczbę utworów, okres, poziom pewności i ograniczenia.
+- Experiment Lab (Wyniki): hipoteza, warianty A i B z przypisanymi utworami, miara, automatyczny wynik z ostrzeżeniem o małej próbie, wniosek; tytuły i miniatury przez „Testuj i porównaj” w YouTube.
+
 ## Historia zmian (skrót)
 - v29: zawsze nowy tekst do analizowanego utworu, układ na tablet i laptop.
 - v30: Warhead Bass zamiast Willa Hayes, teledysk w stylu marki, miniatury 3+3, ścieżka „Mam gotowy utwór”.

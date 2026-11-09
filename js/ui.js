@@ -796,6 +796,8 @@
       ins.length ? h('ul', { class: 'ins' }, ins.map((i) => h('li', { class: i.t }, h('i', null, icon(i.t === 'warn' ? 'warn' : i.t === 'good' ? 'check' : 'chev', i.t === 'warn' ? 20 : 14, 2.4)), h('span', null, i.x, i.c ? h('span', { class: 'conf' }, i.c) : null))))
         : h('p', { class: 'muted' }, 'Za mało danych na wnioski. Połącz YouTube albo wpisz wyniki utworów po 7 dniach.'),
       h('p', { class: 'why' }, 'Liczone w telefonie, bez AI. Korelacja to nie dowód przyczyny.')));
+    root.appendChild(App.intel.block(p));
+    root.appendChild(App.exp.block(p));
     root.appendChild(monetBlock(p, per));
     root.appendChild(guideBlock(p));
 

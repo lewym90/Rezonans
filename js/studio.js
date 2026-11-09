@@ -431,7 +431,7 @@
     const M = S.mem(id), s = App.song(id);
     M.file = file; M.ab = await file.arrayBuffer(); M.buf = await S.decode(M.ab.slice(0)); M.an = S.analyze(M.buf); M.cuts = null; M.caps = null; M.exact = false; M.align = ''; M.plan = null; M.chorusText = null; M.generated = false; M.notes = []; M.prepared = false; M.autoStarted = false; M.heroes = null; M.heroSel = 0; M.tc = null; M.bass = S.bassTrack(M.buf, M.an);
     if (s.chorusAuto !== false) { s.chorusStart = mmss(M.an.chorus.start); s.chorusAuto = true; }
-    s.mp3 = file.name; s.audioSaved = false; s.bpm = Math.round(M.an.bpm); s.dur = Math.round(M.an.dur); App.save();
+    s.mp3 = file.name; s.audioSaved = false; s.bpm = Math.round(M.an.bpm); s.dur = Math.round(M.an.dur); s.vocalIn = Math.round((M.an.vocalStart || 0) * 10) / 10; s.chorusAt = Math.round(M.an.chorus.start); App.save();
     if (!M.fromDb && App.db) App.db.saveAudio(id, file).then(() => { s.audioSaved = true; s.audioSize = file.size; App.save(); }).catch(() => { s.audioSaved = false; });
     M.fresh = !M.fromDb; M.fromDb = false; M.restoreTried = true;
     return M.an;
