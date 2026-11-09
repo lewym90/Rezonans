@@ -75,6 +75,10 @@ Ustawienia → Pobierz kopię. Dane (kanały, utwory) są w localStorage tej prz
 - Kontrola podobieństwa do katalogu kanału (tytuł, motywy, refren, styl, symbol, tempo) w Pomyśle, w pakiecie Suno i w karcie utworu.
 - Laboratorium Suno (Suno → Biblioteka): style z utworów, wzorców kanału i zapisane z generatora; gwiazdka „sprawdzony”, średnie wyniki utworów, porównanie 2–3 stylów, katalog wokali, instrumentów i struktur.
 
+## Wersja 51: szablony i presety Studio
+- 4 szablony animacji (Marka, Słupki, Pierścień, Minimal), wizualizery dźwięku (słupki, fala, pierścień), układ logo i tytułu, intensywność efektów, kolor efektów, czcionka tytułu.
+- Presety zapisywane dla kanału; własna grafika jako tło; podgląd miniatury w rzeczywistych rozmiarach YouTube.
+
 ## Historia zmian (skrót)
 - v29: zawsze nowy tekst do analizowanego utworu, układ na tablet i laptop.
 - v30: Warhead Bass zamiast Willa Hayes, teledysk w stylu marki, miniatury 3+3, ścieżka „Mam gotowy utwór”.

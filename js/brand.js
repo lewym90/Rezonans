@@ -73,6 +73,7 @@
   S.makeBrandRenderer = function (R) {
     const { p, an } = R, pal = p.palette, fx = (p.brand && p.brand.fx) || 'embers', pl = p.lang === 'pl';
     const FX = Object.assign({ logo: true, flash: true, waves: true, particles: true }, (p.studio && p.studio.fx) || {}, R.fx || {});
+    const CF = S.cfgOf(p, R.cfg), IN = CF.inten, AC = CF.color || pal.accent, F = (px, w) => (w || 800) + ' ' + px + 'px "' + CF.font + '", "Inter", system-ui, sans-serif';
     const bt = R.bass || { kicks: [], env: new Float32Array(1), fps: 200 };
     const N_AMB = 90;
     return function draw(ctx, t, freq, o) {
@@ -82,22 +83,24 @@
       // 1. grafika: widoczna cały czas, bez filtrów; delikatnie pulsuje na uderzeniach basu
       const zoom = 1.04 + 0.02 * Math.min(1, rel / Math.max(1, total)) + 0.035 * k;
       cover(ctx, R.hero, W, H, zoom, 0, 0);
-      const cx = W / 2, cy = vert ? H * 0.77 : H * 0.72, box = vert ? W * 0.24 : H * 0.2;
+      let cx = W / 2, cy = vert ? H * 0.77 : H * 0.72, box = vert ? W * 0.24 : H * 0.2;
+      if (CF.layout === 'corner') { box *= 0.62; cx = vert ? W * 0.82 : W * 0.9; cy = vert ? H * 0.1 : H * 0.15; }
+      else if (CF.layout === 'big') { box *= 1.9; cy = H * 0.5; }
       // błysk na mocnych uderzeniach
-      if (FX.flash && k > 0.35) { ctx.fillStyle = 'rgba(255,248,236,' + Math.min(0.16, 0.13 * (k - 0.35) * 1.6) + ')'; ctx.fillRect(0, 0, W, H); }
+      if (FX.flash && k > 0.35) { ctx.fillStyle = 'rgba(255,248,236,' + Math.min(0.24, 0.13 * (k - 0.35) * 1.6 * IN) + ')'; ctx.fillRect(0, 0, W, H); }
       // fale uderzeniowe: pierścienie od logo
       if (FX.waves) {
         ctx.save(); ctx.globalCompositeOperation = 'lighter';
         for (let j = ko.i; j >= 0 && t - bt.kicks[j].t < 0.9; j--) {
           const kk = bt.kicks[j]; if (kk.s < 0.5) continue; const tau = t - kk.t, u = tau / 0.9;
-          ctx.strokeStyle = hexA(pal.accent, Math.pow(1 - u, 2) * 0.75 * Math.min(1, kk.s)); ctx.lineWidth = S1 * (0.008 * (1 - u) + 0.002);
+          ctx.strokeStyle = hexA(AC, Math.min(1, Math.pow(1 - u, 2) * 0.75 * Math.min(1, kk.s) * IN)); ctx.lineWidth = S1 * (0.008 * (1 - u) + 0.002);
           ctx.beginPath(); ctx.arc(cx, cy, box * (0.55 + u * 2.4), 0, 6.2832); ctx.stroke();
         }
         ctx.restore();
       }
       // 3. cząsteczki: jasne, drobne, unoszą się; na uderzeniu basu robią się większe i jaśniejsze
       ctx.globalCompositeOperation = 'lighter';
-      if (FX.particles) for (let i = 0; i < N_AMB; i++) {
+      if (FX.particles) for (let i = 0; i < Math.round(N_AMB * Math.min(1.6, IN)); i++) {
         const sd = hash(i + 1), sx = hash(i + 101), sp = 14 + sd * 40, ph = hash(i + 201), sz = (0.7 + hash(i + 301) * 2.0) * S1 / 720;
         const run = (t * sp * (0.7 + e) * S1 / 720 + ph * H * 1.2) % (H * 1.2);
         const x = sx * W + Math.sin(t * (0.5 + sd) + i) * 14 * S1 / 720, y = H * 1.05 - run;
@@ -114,19 +117,44 @@
       }
       ctx.globalCompositeOperation = 'source-over';
       // 2. logo kanału pulsuje na stopę
-      if (R.logo) { const sc = FX.logo ? 1 + 0.09 * Math.min(1.1, k) + 0.025 * b : 1; drawLogo(ctx, R.logo, cx, cy, box, sc); }
+      // wizualizer dźwięku (wariant z szablonu)
+      if (CF.viz !== 'none') {
+        const nb = CF.viz === 'ring' ? 64 : 48, val = (i) => { if (freq && freq.length) { const j = Math.floor(Math.pow(i / nb, 1.6) * freq.length * 0.7) + 1; return freq[j] / 255; } return Math.max(0, Math.min(1, b * (0.6 + 0.4 * Math.sin(i * 1.7 + t * 6)) + k * 0.3)); };
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        if (CF.viz === 'bars') { const bw = W * 0.86 / nb, by = vert ? H * 0.64 : H * 0.97; for (let i = 0; i < nb; i++) { const v = val(i), hh = (vert ? H * 0.08 : H * 0.12) * v * IN; ctx.fillStyle = hexA(AC, 0.35 + 0.5 * v); ctx.fillRect(W * 0.07 + i * bw + bw * 0.18, by - hh, bw * 0.64, hh); } }
+        else if (CF.viz === 'wave') { ctx.strokeStyle = hexA(AC, 0.75); ctx.lineWidth = S1 * 0.004; ctx.beginPath(); const wy = vert ? H * 0.62 : H * 0.6; for (let i = 0; i <= nb; i++) { const x = W * 0.08 + i * (W * 0.84 / nb), v = val(i % nb) * (i % 2 ? 1 : -1); i ? ctx.lineTo(x, wy + v * S1 * 0.06 * IN) : ctx.moveTo(x, wy); } ctx.stroke(); }
+        else if (CF.viz === 'ring') { for (let i = 0; i < nb; i++) { const a = i / nb * 6.2832 - 1.5708, v = val(i % (nb / 2)), r0 = box * 0.62, r1 = r0 + box * 0.45 * v * IN; ctx.strokeStyle = hexA(AC, 0.4 + 0.5 * v); ctx.lineWidth = S1 * 0.005; ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.stroke(); } }
+        ctx.restore();
+      }
+      if (R.logo) { const sc = FX.logo ? 1 + 0.09 * Math.min(1.1, k) * IN + 0.025 * b : 1; drawLogo(ctx, R.logo, cx, cy, box, sc); }
       // 4. tytuł i nazwa kanału na dole
       const fa = Math.min(1, rel / 0.7); ctx.globalAlpha = fa; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
       ctx.shadowColor = 'rgba(0,0,0,.85)'; ctx.shadowBlur = S1 * 0.025;
-      const tpx = vert ? W * 0.07 : H * 0.055; ctx.font = font(tpx, 800);
+      const tpx = vert ? W * 0.07 : H * 0.055; ctx.font = F(tpx, 800);
+      const left = CF.layout === 'corner', top = CF.layout === 'big', tx = left ? W * 0.06 : W / 2; ctx.textAlign = left ? 'left' : 'center';
       let tl = wrap(ctx, (R.title || '').toUpperCase(), W * (vert ? 0.86 : 0.7)); if (tl.length > 2) tl = tl.slice(0, 2);
-      const lh = tpx * 1.05, ty = (vert ? H * 0.9 : H * 0.88) - (tl.length - 1) * lh;
-      ctx.fillStyle = '#fff'; tl.forEach((l, i) => ctx.fillText(l, W / 2, ty + i * lh));
-      const npx = tpx * 0.42; ctx.font = font(npx, 700); const nm = (p.name || '').toUpperCase().split('').join(' ');
-      ctx.fillStyle = 'rgba(255,255,255,.82)'; ctx.fillText(nm, W / 2, ty + (tl.length - 1) * lh + npx * 1.9);
+      const lh = tpx * 1.05, ty = top ? (vert ? H * 0.16 : H * 0.14) : (vert ? H * 0.9 : H * 0.88) - (tl.length - 1) * lh;
+      ctx.fillStyle = '#fff'; tl.forEach((l, i) => ctx.fillText(l, tx, ty + i * lh));
+      const npx = tpx * 0.42; ctx.font = F(npx, 700); const nm = (p.name || '').toUpperCase().split('').join(' ');
+      ctx.fillStyle = 'rgba(255,255,255,.82)'; ctx.fillText(nm, tx, ty + (tl.length - 1) * lh + npx * 1.9);
       ctx.shadowBlur = 0; ctx.globalAlpha = 1;
       ctx.restore();
     };
+  };
+
+  /* ---------- szablony animacji i konfiguracja (zapisywana dla kanału, presety) ---------- */
+  S.TEMPLATES = [
+    { id: 'brand', n: 'Marka', d: 'Logo nad tytułem, cząstki i fale', cfg: { layout: 'center', viz: 'none' } },
+    { id: 'bars', n: 'Słupki', d: 'Słupki widma dźwięku na dole', cfg: { layout: 'center', viz: 'bars' } },
+    { id: 'ring', n: 'Pierścień', d: 'Duże logo w pierścieniu widma', cfg: { layout: 'big', viz: 'ring' } },
+    { id: 'minimal', n: 'Minimal', d: 'Małe logo w rogu, tytuł z lewej', cfg: { layout: 'corner', viz: 'wave' } }
+  ];
+  S.FONTS = ['Manrope', 'Inter', 'IBM Plex Mono'];
+  S.cfgOf = (p, extra) => Object.assign({ tpl: 'brand', layout: 'center', viz: 'none', inten: 1, color: '', font: 'Manrope' }, (p.studio && p.studio.cfg) || {}, extra || {});
+  /* własna grafika jako tło (dołącza do propozycji i zapisuje się w telefonie) */
+  S.addOwnHero = function (id, file) {
+    const M = S.mem(id);
+    return new Promise((res, rej) => { const im = new Image(); im.onload = () => { M.heroes = [im].concat(M.heroes || []).slice(0, 6); M.heroPrompts = ['własna grafika'].concat(M.heroPrompts || []).slice(0, 6); M.heroSel = 0; M.heroPicked = true; M.tc = null; S.saveHeroes(id); res(im); }; im.onerror = () => rej(new Error('Nie udało się wczytać obrazu.')); im.src = URL.createObjectURL(file); });
   };
 
   /* ---------- miniatury: 3 układy, 16:9 (1280×720) i 9:16 (1080×1920) ---------- */
@@ -267,6 +295,12 @@
       h('button', { class: 'btn ghost', onclick: guard(async () => { const b = await new Promise((r) => list[M[selKey] || 0].toBlob(r, 'image/jpeg', 0.92)); const nm = (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + (vertical ? '_9x16.jpg' : '_16x9.jpg'); if (!vertical) { s.thumbDone = true; App.save(); } S.save(b, nm, 'share').catch(() => S.save(b, nm, 'file')); }) }, icon('copy', 18), 'Zapisz wybraną miniaturę'));
     out.push(pick(M.tc.c16, 300, 'thumbVar16', 'Miniatura 16:9 (1280×720). Jest też pierwszym kadrem teledysku.', false));
     out.push(pick(M.tc.c9, 170, 'thumbVar9', 'Miniatura Shorta 9:16 (1080×1920). Jest pierwszym kadrem Shorta.', true));
+    // podgląd w rzeczywistych rozmiarach, w jakich widz zobaczy miniaturę
+    const th = M.tc.c16[M.thumbVar16 || 0], dur = M.an ? mmss(M.an.dur) : '';
+    const yt = (w, label) => { const c = small(th, w * 2); c.style.cssText = 'width:' + w + 'px;height:auto;border-radius:' + (w > 200 ? 10 : 6) + 'px;display:block'; return h('div', { class: 'ytp', style: { width: w + 'px' } }, h('div', { style: { position: 'relative' } }, c, dur ? h('span', { class: 'ytd' }, dur) : null), h('b', null, (s.title || 'Tytuł') + (w > 200 ? ' | ' + p.name : '')), h('span', null, p.name + ' · ' + label)); };
+    out.push(h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Tak miniatura wygląda na YouTube (rzeczywista wielkość na telefonie)'),
+      h('div', { class: 'ytrow' }, yt(330, 'strona główna')), h('div', { class: 'ytrow small' }, yt(168, 'proponowane, wyszukiwarka')),
+      h('p', { class: 'why' }, 'Najmniejszy rozmiar decyduje: jeśli napis jest tu nieczytelny, skróć go do 1–2 słów.')));
     return out;
   };
 })();

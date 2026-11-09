@@ -575,6 +575,29 @@
     return { id: vid, channel: YT.channel, thumbErr };
   };
 
+  /* ---------- szablon, wizualizer, układ, intensywność, kolor, czcionka, presety (zapisywane dla kanału) ---------- */
+  S.tplBlock = function (songId, render, still) {
+    const h = App.ui.h, icon = App.ui.icon, K = App.ui.kit, toast = App.ui.toast, s = App.song(songId), p = App.profile(s.profileId);
+    const st = (p.studio = p.studio || { fx: {} }); const cfg = (st.cfg = S.cfgOf(p));
+    const set = (o) => { Object.assign(cfg, o); App.save(); render(); };
+    const row = (label, list, key) => h('div', { class: 'stack', style: { gap: '8px' } }, h('span', { class: 'flabel' }, label), h('div', { class: 'chips' }, list.map((x) => K.chip(x[1], cfg[key] === x[0], () => set({ [key]: x[0], tpl: key === 'tpl' ? x[0] : 'custom' })))));
+    const COLORS = [['', 'Kanał'], [p.palette.accent2, 'Drugi kolor'], ['#FFFFFF', 'Biały'], ['#D6B36A', 'Złoty']];
+    const presets = (st.presets = st.presets || []);
+    return h('details', { class: 'phase' }, h('summary', null, h('b', null, 'Szablon i styl animacji'), h('span', { class: 'muted small' }, ((S.TEMPLATES.find((t) => t.id === cfg.tpl) || {}).n || 'własny'))),
+      h('div', { class: 'stack', style: { padding: '8px 0 14px' } },
+        h('div', { class: 'stack', style: { gap: '8px' } }, h('span', { class: 'flabel' }, 'Szablon'), h('div', { class: 'chips' }, S.TEMPLATES.map((t) => K.chip(t.n, cfg.tpl === t.id, () => set(Object.assign({ tpl: t.id }, t.cfg)))))),
+        h('p', { class: 'muted small' }, (S.TEMPLATES.find((t) => t.id === cfg.tpl) || { d: 'Własne ustawienia.' }).d),
+        row('Wizualizer dźwięku', [['none', 'Brak'], ['bars', 'Słupki'], ['wave', 'Fala'], ['ring', 'Pierścień']], 'viz'),
+        row('Logo i tytuł', [['center', 'Logo nad tytułem'], ['corner', 'Logo w rogu'], ['big', 'Duże logo, tytuł u góry']], 'layout'),
+        h('label', { class: 'field' }, h('span', { class: 'flabel' }, 'Intensywność efektów: ' + Math.round(cfg.inten * 100) + '%'), h('input', { type: 'range', min: 0.4, max: 1.6, step: 0.1, value: cfg.inten, onchange: (e) => set({ inten: +e.target.value }) })),
+        h('div', { class: 'stack', style: { gap: '8px' } }, h('span', { class: 'flabel' }, 'Kolor efektów'), h('div', { class: 'chips' }, COLORS.map((c) => K.chip(c[1], (cfg.color || '') === c[0], () => set({ color: c[0], tpl: 'custom' }))), h('input', { type: 'color', value: cfg.color || p.palette.accent, style: { width: '46px', height: '38px', padding: '2px', borderRadius: '10px' }, onchange: (e) => set({ color: e.target.value, tpl: 'custom' }) }))),
+        row('Czcionka tytułu', S.FONTS.map((f) => [f, f]), 'font'),
+        h('div', { class: 'stack', style: { gap: '8px' } }, h('span', { class: 'flabel' }, 'Presety kanału ' + p.name),
+          presets.length ? h('div', { class: 'chips' }, presets.map((x, i) => h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '2px' } }, K.chip(x.n, false, () => { Object.assign(cfg, x.cfg); st.fx = Object.assign({}, x.fx); App.save(); toast('Wczytano preset „' + x.n + '”'); render(); }), h('button', { class: 'iconbtn sm', 'aria-label': 'Usuń preset', onclick: () => { if (confirm('Usunąć preset „' + x.n + '”?')) { presets.splice(i, 1); App.save(); render(); } } }, icon('close', 14))))) : h('p', { class: 'muted small' }, 'Brak zapisanych presetów.'),
+          h('button', { class: 'btn ghost sm', onclick: () => { const n = prompt('Nazwa presetu (np. „Warhead nocny”):'); if (!n) return; presets.push({ n: n.trim().slice(0, 30), cfg: Object.assign({}, cfg), fx: Object.assign({}, st.fx) }); App.save(); toast('Preset zapisany'); render(); } }, icon('plus', 16), 'Zapisz obecne ustawienia jako preset')),
+        h('p', { class: 'muted small' }, 'Ustawienia i efekty zapisują się dla kanału ' + p.name + ' i działają w podglądzie, filmie i Shorcie.')));
+  };
+
   /* ---------- ekran studia (szczegóły) ---------- */
   S.open = function (songId) {
     const K = App.ui.kit, h = App.ui.h, icon = App.ui.icon, toast = App.ui.toast;
@@ -639,13 +662,14 @@
     const fx = (p.studio = p.studio || { fx: {} }).fx = Object.assign({ logo: true, flash: true, waves: true, particles: true }, (p.studio || {}).fx);
     const tg = (k, ic, label) => h('label', { class: 'tg' }, icon(ic, 22, 1.6), h('span', null, label), h('input', { type: 'checkbox', checked: fx[k] !== false, onchange: (e) => { fx[k] = e.target.checked; App.save(); showStill(); } }));
 
+    const ownBtn = () => h('label', { class: 'btn ghost sm filebtn' }, icon('plus', 16), 'Własna grafika', h('input', { type: 'file', accept: 'image/*', onchange: async (e) => { const f = e.target.files[0]; if (!f) return; try { await S.addOwnHero(songId, f); s.visual = 'własna grafika'; App.save(); render(); } catch (er) { toast(er.message); } } }));
     let heroesBlock = null;
     if (M.heroes && M.heroes.length) {
       const sel = Math.min(M.heroSel || 0, M.heroes.length - 1), order = [sel].concat(M.heroes.map((_, i) => i).filter((i) => i !== sel));
       heroesBlock = h('div', { class: 'stack' }, h('h3', null, 'Wybierz tło'),
         h('div', { class: 'bgpick' }, order.map((i, k) => { const c = S.small(M.heroes[i], k === 0 ? 720 : 360); return h('div', { class: 'im' + (k === 0 ? ' big' : '') + (k === 0 && M.heroPicked ? ' sel' : ''), onclick: () => { M.heroSel = i; M.heroPicked = true; M.tc = null; if (M.heroPrompts && M.heroPrompts[i]) s.visual = M.heroPrompts[i]; App.save(); S.saveHeroSel(songId); render(); } }, c, k === 0 && M.heroPicked ? h('span', { class: 'chk' }, icon('check', 18, 2.6)) : null); })),
         M.heroPicked ? null : h('p', { class: 'muted small' }, 'Dotknij duże zdjęcie, żeby je zatwierdzić, albo mniejsze, żeby je wybrać.'),
-        h('button', { class: 'btn ghost sm', disabled: M.running ? 'true' : null, onclick: () => S.newHeroes(songId, render) }, icon('refresh', 16), 'Wygeneruj inne 3 tła'));
+        h('div', { class: 'row-btns' }, h('button', { class: 'btn ghost sm', disabled: M.running ? 'true' : null, onclick: () => S.newHeroes(songId, render) }, icon('refresh', 16), 'Wygeneruj inne 3 tła'), ownBtn()));
     }
     const cands = (M.an.chorus.cands || []);
     return h('div', { class: 'stack' },
@@ -656,10 +680,10 @@
       !M.prepared && !M.running ? h('div', { class: 'stack' },
         h('button', { class: 'btn big' + (key ? ' ai' : ''), onclick: () => S.runPrepare(songId, render) }, icon('spark', 20), 'Przygotuj teledysk'),
         h('p', { class: 'muted small' }, key ? 'Gemini jednorazowo wysłucha nagrania (napisy ze słuchu) i zaprojektuje 3 tła. Nagranie nie jest nigdzie zapisywane.' : 'Bez klucza Gemini napisy będą przybliżone, a tła powstaną ze scen domyślnych kanału.')) : null,
-      heroesBlock,
+      heroesBlock || (M.prepared ? null : h('div', { class: 'row-btns' }, ownBtn())),
       h('h3', null, 'Animacja i efekty'),
       h('div', { class: 'tgl' }, tg('logo', 'pulse', 'Pulsujące logo rytmem'), tg('flash', 'flash', 'Błyski na uderzeniach'), tg('waves', 'waves', 'Fale uderzeniowe'), tg('particles', 'dust', 'Cząstki (pył/iskry)')),
-      h('p', { class: 'muted small' }, 'Ustawienia efektów zapisują się dla kanału ' + p.name + '.'),
+      S.tplBlock(songId, render, showStill),
       cv,
       h('button', { class: 'btn big', onclick: guard(async () => { const R = S.mk(songId); setBar(0); await S.play(R, cv, { start: S.shortWindow(songId).start, len: 15, record: false, onProgress: setBar }); showStill(); }) }, icon('play', 20), 'Podgląd 15 s'),
       bar,
