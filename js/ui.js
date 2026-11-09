@@ -816,15 +816,21 @@
   }
 
   /* ================= USTAWIENIA ================= */
+  /* pokaż / ukryj klucz i skopiuj go (pole jest zamaskowane kropkami) */
+  function keyTools(get, label) {
+    const eye = h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': 'Pokaż ' + label, onclick: (e) => { e.preventDefault(); const inp = e.currentTarget.closest('label').querySelector('input'); const hide = inp.classList.toggle('secret'); e.currentTarget.style.color = hide ? '' : 'var(--accent)'; } }, h('span', { class: 'ico', html: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>' }));
+    const cp = h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': 'Kopiuj ' + label, onclick: (e) => { e.preventDefault(); const v = get(); if (!v) return toast('Pole jest puste.'); copy(v, label + ' skopiowany'); } }, icon('copy', 18));
+    return h('span', { style: { display: 'inline-flex', gap: '2px', marginLeft: 'auto' } }, eye, cp);
+  }
   function openSettings() {
     const s = App.state.settings;
     const sec = (attrs) => h('input', Object.assign({ type: 'text', class: 'secret', autocomplete: 'off', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', 'data-lpignore': 'true' }, attrs));
     openSheet('Ustawienia', (render) => h('div', { class: 'stack' },
       h('div', { class: 'infobox' }, 'Klucze zostają w tym telefonie i trafiają tylko do usługi, do której należą. Nagranie wysyłasz do Gemini wyłącznie przyciskiem, który to mówi (napisy ze słuchu, analiza utworu). Wszystko inne liczy się w telefonie.'),
-      field('Klucz Gemini (darmowy, aistudio.google.com)', sec({ name: 'rz-gemini', value: s.gemini, placeholder: 'AIza…', oninput: (e) => { s.gemini = e.target.value.trim(); App.save(); if (App.studio && App.studio.resetPrep) App.studio.resetPrep(); } })),
+      field('Klucz Gemini (darmowy, aistudio.google.com)', sec({ name: 'rz-gemini', value: s.gemini, placeholder: 'AIza…', oninput: (e) => { s.gemini = e.target.value.trim(); App.save(); if (App.studio && App.studio.resetPrep) App.studio.resetPrep(); } }), keyTools(() => s.gemini, 'Klucz Gemini')),
       h('button', { class: 'btn ghost', onclick: async (e) => { const b = e.currentTarget; b.disabled = true; b.textContent = 'Sprawdzam…'; try { await App.ai.gemini('Odpowiedz jednym słowem: OK', { temp: 0 }); toast('Klucz działa. Model: ' + App.state.settings.model); } catch (er) { toast(er.message); } b.disabled = false; b.textContent = 'Sprawdź klucz Gemini'; } }, 'Sprawdź klucz Gemini'),
       field('Model Gemini', h('input', { value: s.model, oninput: (e) => { s.model = e.target.value.trim(); App.save(); } })),
-      field('Klucz YouTube Data API (opcjonalny, import kanału)', sec({ name: 'rz-yt', value: s.yt, placeholder: 'AIza…', oninput: (e) => { s.yt = e.target.value.trim(); App.save(); } })),
+      field('Klucz YouTube Data API (opcjonalny, import kanału)', sec({ name: 'rz-yt', value: s.yt, placeholder: 'AIza…', oninput: (e) => { s.yt = e.target.value.trim(); App.save(); } }), keyTools(() => s.yt, 'Klucz YouTube')),
       field('Google OAuth Client ID (wysyłka i statystyki YouTube)', h('input', { value: s.ytClient || '', placeholder: '…apps.googleusercontent.com', oninput: (e) => { s.ytClient = e.target.value.trim(); App.save(); } })),
       field('Adres generatora obrazów (Cloudflare Worker)', h('input', { value: s.img || '', placeholder: 'https://…workers.dev/', oninput: (e) => { s.img = e.target.value.trim(); App.save(); } })),
       h('button', { class: 'btn ghost danger', onclick: () => { if (confirm('Usunąć klucze Gemini i YouTube z tego telefonu?')) { s.gemini = ''; s.yt = ''; App.save(); render(); toast('Klucze usunięte'); } } }, icon('trash', 18), 'Usuń klucze z telefonu'),
