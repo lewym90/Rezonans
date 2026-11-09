@@ -431,7 +431,7 @@
     const M = S.mem(id), s = App.song(id);
     M.file = file; M.ab = await file.arrayBuffer(); M.buf = await S.decode(M.ab.slice(0)); M.an = S.analyze(M.buf); M.cuts = null; M.caps = null; M.exact = false; M.align = ''; M.plan = null; M.chorusText = null; M.generated = false; M.notes = []; M.prepared = false; M.autoStarted = false; M.heroes = null; M.heroSel = 0; M.tc = null; M.bass = S.bassTrack(M.buf, M.an);
     if (s.chorusAuto !== false) { s.chorusStart = mmss(M.an.chorus.start); s.chorusAuto = true; }
-    s.mp3 = file.name; s.audioSaved = false; App.save();
+    s.mp3 = file.name; s.audioSaved = false; s.bpm = Math.round(M.an.bpm); s.dur = Math.round(M.an.dur); App.save();
     if (!M.fromDb && App.db) App.db.saveAudio(id, file).then(() => { s.audioSaved = true; s.audioSize = file.size; App.save(); }).catch(() => { s.audioSaved = false; });
     M.fresh = !M.fromDb; M.fromDb = false; M.restoreTried = true;
     return M.an;
@@ -643,7 +643,7 @@
     if (M.heroes && M.heroes.length) {
       const sel = Math.min(M.heroSel || 0, M.heroes.length - 1), order = [sel].concat(M.heroes.map((_, i) => i).filter((i) => i !== sel));
       heroesBlock = h('div', { class: 'stack' }, h('h3', null, 'Wybierz tło'),
-        h('div', { class: 'bgpick' }, order.map((i, k) => { const c = S.small(M.heroes[i], k === 0 ? 720 : 360); return h('div', { class: 'im' + (k === 0 ? ' big' : '') + (k === 0 && M.heroPicked ? ' sel' : ''), onclick: () => { M.heroSel = i; M.heroPicked = true; M.tc = null; S.saveHeroSel(songId); render(); } }, c, k === 0 && M.heroPicked ? h('span', { class: 'chk' }, icon('check', 18, 2.6)) : null); })),
+        h('div', { class: 'bgpick' }, order.map((i, k) => { const c = S.small(M.heroes[i], k === 0 ? 720 : 360); return h('div', { class: 'im' + (k === 0 ? ' big' : '') + (k === 0 && M.heroPicked ? ' sel' : ''), onclick: () => { M.heroSel = i; M.heroPicked = true; M.tc = null; if (M.heroPrompts && M.heroPrompts[i]) s.visual = M.heroPrompts[i]; App.save(); S.saveHeroSel(songId); render(); } }, c, k === 0 && M.heroPicked ? h('span', { class: 'chk' }, icon('check', 18, 2.6)) : null); })),
         M.heroPicked ? null : h('p', { class: 'muted small' }, 'Dotknij duże zdjęcie, żeby je zatwierdzić, albo mniejsze, żeby je wybrać.'),
         h('button', { class: 'btn ghost sm', disabled: M.running ? 'true' : null, onclick: () => S.newHeroes(songId, render) }, icon('refresh', 16), 'Wygeneruj inne 3 tła'));
     }

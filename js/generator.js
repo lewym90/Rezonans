@@ -321,8 +321,9 @@
     const root = h('div', { class: 'screen' });
     const rerender = () => { if (App.state.tab === 'gen') UI.render(); };
     root.appendChild(UI.topbar('Generator Suno', 'Z pomysłu albo z piosenki, którą lubisz'));
-    root.appendChild(h('div', { class: 'seg', role: 'tablist' }, [['idea', 'Z pomysłu'], ['ref', 'Z piosenki']].map((m) => h('button', { role: 'tab', 'aria-selected': st.mode === m[0] ? 'true' : 'false', class: st.mode === m[0] ? 'on' : '', onclick: () => { st.mode = m[0]; rerender(); } }, m[1]))));
+    root.appendChild(h('div', { class: 'seg', role: 'tablist' }, [['idea', 'Z pomysłu'], ['ref', 'Z piosenki'], ['lib', 'Biblioteka']].map((m) => h('button', { role: 'tab', 'aria-selected': st.mode === m[0] ? 'true' : 'false', class: st.mode === m[0] ? 'on' : '', onclick: () => { st.mode = m[0]; rerender(); } }, m[1]))));
     if (st.mode === 'ref') { refView(root, st, rerender); return root; }
+    if (st.mode === 'lib') { App.lib.view(root, rerender); return root; }
     const ta = h('textarea', { rows: 4, placeholder: 'Np. idę na siłownię, chcę czegoś potężnego, co rozniesie mi mózg na słuchawkach i pozwoli przerzucić setki kilogramów więcej', value: st.idea, oninput: (e) => { st.idea = e.target.value; } });
     const seg = (label, list, key) => h('div', { class: 'stack' }, h('span', { class: 'flabel' }, label), h('div', { class: 'row-btns' }, list.map((x) => K.chip(x[1], st.opts[key] === x[0], () => { st.opts[key] = x[0]; rerender(); }))));
     const hasKey = App.ai.hasKey();
@@ -349,7 +350,8 @@
         fld('Wyklucz (Exclude styles)', r.exclude, 2), fld('Tekst (Lyrics)', r.lyrics, 14, 5000, h('span', { class: 'count' }, r.lyrics.length + ' / 5000')),
         h('div', { class: 'okbox' }, h('b', null, 'Suwaki w Suno: '), 'Weirdness ' + r.weirdness + '%, Style Influence ' + r.influence + '%.' + (r.tip ? ' ' + r.tip : '')),
         h('a', { class: 'btn big', href: 'https://suno.com/create', target: '_blank', rel: 'noopener' }, icon('link', 18), 'Otwórz Suno'),
-        h('button', { class: 'btn big ghost', onclick: () => UI.copy(all(), 'Wszystko skopiowane') }, icon('copy', 18), 'Kopiuj wszystko naraz'));
+        h('button', { class: 'btn big ghost', onclick: () => UI.copy(all(), 'Wszystko skopiowane') }, icon('copy', 18), 'Kopiuj wszystko naraz'),
+        h('button', { class: 'btn ghost', onclick: () => { App.lib.add({ ch: App.state.activeProfile, name: r.title, styles: r.styles, exclude: r.exclude, w: r.weirdness, inf: r.influence, src: 'generator' }); toast('Zapisano w bibliotece kanału ' + App.profile().name); } }, icon('plus', 18), 'Zapisz styl w bibliotece kanału'));
     };
     if (st.cur) root.appendChild(show(st.cur));
     history(root, st, rerender);
@@ -417,7 +419,8 @@
       const vgrid = h('div', { class: 'dgrid' }); root.appendChild(vgrid);
       r.variants.forEach((v) => vgrid.appendChild(h('div', { class: 'stack' },
         h('h4', null, v.label), fld('Styl (Styles)', v.styles, 6, h('span', { class: 'count' }, v.styles.length + ' / 1000')), v.exclude ? fld('Wyklucz (Exclude styles)', v.exclude, 2) : null,
-        h('p', { class: 'muted small' }, 'Suwaki: Weirdness ' + v.weirdness + '%, Style Influence ' + v.influence + '%'))));
+        h('p', { class: 'muted small' }, 'Suwaki: Weirdness ' + v.weirdness + '%, Style Influence ' + v.influence + '%'),
+        h('button', { class: 'btn ghost sm', onclick: () => { App.lib.add({ ch: App.state.activeProfile, name: (r.name || 'Analiza') + ' · ' + v.label, styles: v.styles, exclude: v.exclude, w: v.weirdness, inf: v.influence, src: 'analiza piosenki' }); toast('Zapisano w bibliotece kanału ' + App.profile().name); } }, icon('plus', 16), 'Zapisz w bibliotece'))));
       if (r.tags && r.tags.length) root.appendChild(fld('Meta-tagi budowy do tekstu (Lyrics)', r.tags.join('\n'), 8));
       if (r.lyrics) { root.appendChild(h('h3', { class: 'sec' }, 'Nowy tekst do tego utworu (wymyślony od zera)')); root.appendChild(fld('Tytuł (Song Title)', r.title, 1)); root.appendChild(fld('Tekst (Lyrics)', r.lyrics, 14, h('span', { class: 'count' }, r.lyrics.length + ' / 5000'))); }
       if (r.tip) root.appendChild(h('div', { class: 'okbox' }, r.tip));

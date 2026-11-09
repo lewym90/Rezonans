@@ -62,7 +62,7 @@
   };
 
   /* ---------- automatyczne kopie (w telefonie, ostatnie 10) ---------- */
-  const pack = () => { const s = App.state; return { format: 'rezonans', schema: App.schema, version: App.version, at: Date.now(), profiles: s.profiles, songs: s.songs, settings: Object.assign({}, s.settings, { gemini: '', yt: '' }), activeProfile: s.activeProfile, quick: s.quick || [] }; };
+  const pack = () => { const s = App.state; return { format: 'rezonans', schema: App.schema, version: App.version, at: Date.now(), profiles: s.profiles, songs: s.songs, settings: Object.assign({}, s.settings, { gemini: '', yt: '' }), activeProfile: s.activeProfile, quick: s.quick || [], lib: s.lib || [] }; };
   App.pack = pack;
   DB.snapshot = async function (reason) {
     try {
@@ -90,6 +90,7 @@
     App.state.profiles = d.profiles; App.state.songs = d.songs || []; App.state.activeProfile = d.activeProfile || d.profiles[0].id;
     if (d.settings) App.state.settings = Object.assign({}, App.state.settings, d.settings, keep);
     if (d.quick) App.state.quick = d.quick;
+    if (d.lib) App.state.lib = d.lib;
     App.state.schema = d.schema || 1; App.migrate(App.state); App.save();
   };
   DB.importAll = async function (file) {

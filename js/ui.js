@@ -419,6 +419,8 @@
         h('h3', null, 'Dlaczego to zadziała?'),
         h('ul', { class: 'whyl' }, r.score.checks.map((c) => h('li', { class: c.ok ? 'ok' : 'no' }, h('span', { class: 'ci' }, icon(c.ok ? 'check' : 'warn', c.ok ? 14 : 20, 2.4)), h('span', null, c.x)))),
         h('p', { class: 'why' }, 'Ocena liczona w telefonie z DNA kanału, bez AI.')),
+      h('section', { class: 'card' }, h('div', { class: 'card-h' }, icon('brain', 22, 1.6), h('h3', null, 'DNA Track: podobieństwo')),
+        App.dna.simBox(App.dna.similar(App.profile(), { title: first ? first.title : '', text: (App.state.ui.text || '') + ' ' + (first ? first.premise || '' : ''), symbol: first && first.symbol }))),
       first ? h('button', { class: 'packbtn', onclick: () => openBuilder(first) }, h('span', { class: 'ib' }, icon('note', 22, 1.8)), h('span', null, 'Gotowy pakiet Suno'), icon('chev', 18)) : null,
       h('h3', { class: 'sec' }, r.ai ? 'Wersje od Gemini' : 'Wersje dopasowane do kanału'),
       h('div', { class: 'ideas' }, r.ideas.map(ideaCard)));
@@ -508,6 +510,7 @@
         fld('Wyklucz (Exclude styles)', v.exclude, 2),
         h('div', { class: 'okbox' }, h('b', null, 'Suwaki w Suno: '), 'Weirdness ' + v.weirdness + '%, Style Influence ' + v.influence + '%.' + (pk.tip ? ' ' + pk.tip : '')),
         fld('Tekst (Lyrics)', pk.lyrics, 16, h('span', { class: 'count' }, pk.lyrics.length + ' / 5000')),
+        App.dna.simBox(App.dna.similar(p, { title: st.title, lyrics: pk.lyrics, style: v.styles, symbol: idea.symbol })),
         found.length ? h('div', { class: 'warnbox' }, h('p', null, icon('shield', 18), 'Wulgaryzmy w ' + found.length + ' lini. Mogą ograniczyć reklamy.'), h('button', { class: 'btn ghost sm', onclick: () => { pk.lyrics = E.clean(pk.lyrics); render(); toast('Zamieniono na czystą wersję'); } }, 'Zamień na czystą wersję')) : null,
         h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: st.clean, onchange: (e) => { st.clean = e.target.checked; } }), h('span', null, 'Czysta wersja bez wulgaryzmów (przy kolejnym generowaniu)')),
         h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: run }, icon('refresh', 18), 'Wygeneruj ponownie'), h('button', { class: 'btn ghost', onclick: () => copy(all(), 'Wszystko skopiowane') }, icon('copy', 18), 'Kopiuj wszystko')),
@@ -611,6 +614,7 @@
       return h('div', { class: 'stack' },
         h('div', { class: 'sum' }, ring(done, r.items.length, 64), h('div', null, h('b', null, done === r.items.length ? 'Wydanie zakończone' : 'Do zrobienia: ' + (r.items.length - done)), h('p', { class: 'muted small' }, 'Kanał: ' + p.name + (s.mp3 ? ' · plik: ' + s.mp3 + (s.audioSaved ? ' (zapisany w telefonie)' : '') : '')))),
         warns.length ? h('div', { class: 'warnbox' }, warns.map((w) => h('p', null, icon('warn', 18), w))) : null,
+        (s.lyrics || s.style) ? (function () { const sim = App.dna.similar(p, { title: s.title, lyrics: s.lyrics, style: s.style, symbol: s.symbol, bpm: s.bpm }, s.id); return sim.level === 'ok' ? null : App.dna.simBox(sim); })() : null,
         h('div', { class: 'rc-grid' }, App.readiness(s).map((x) => h('div', { class: 'rc-c ' + x.st }, icon(x.st === 'ok' ? 'check' : x.st === 'bad' ? 'warn' : x.ic, 18, 2), h('span', null, x.k)))),
         field('Tytuł', h('input', { value: s.title || '', oninput: (e) => { s.title = e.target.value; save(); } })),
         h('div', null, h('span', { class: 'flabel' }, 'Kanał'), h('div', { class: 'chips' }, App.state.profiles.map((o) => chip(o.name, s.profileId === o.id, () => { if (s.profileId === o.id) return; if (confirm('Przenieść utwór do kanału ' + o.name + '?')) { s.profileId = o.id; s.history = (s.history || []).concat({ at: Date.now(), x: 'Przeniesiono do kanału ' + o.name }); App.state.activeProfile = o.id; save(); UI.applyTheme(); render(); } })))),
@@ -818,7 +822,8 @@
         h('div', { class: 'row-m' }, h('b', null, p.name), h('span', { class: 'muted small' }, p.handle + ' · ' + (p.lang === 'pl' ? 'polski' : 'angielski') + ' · ' + n + ' utw.'), h('span', { class: 'muted small', style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, p.dna.genre)),
         h('span', { style: { display: 'flex', gap: '4px' } }, h('i', { style: { width: '12px', height: '12px', borderRadius: '50%', background: p.palette.accent } }), h('i', { style: { width: '12px', height: '12px', borderRadius: '50%', background: p.palette.accent2 } })));
     })));
-    root.appendChild(h('div', { class: 'row-btns pad', style: { marginTop: '14px' } }, h('button', { class: 'btn ghost', onclick: openImport }, icon('link', 18), 'Importuj kanał z YouTube')));
+    root.appendChild(h('div', { class: 'row-btns pad', style: { marginTop: '14px' } }, h('button', { class: 'btn', onclick: () => App.dna.open(App.state.activeProfile) }, icon('brain', 18), 'DNA Track: ' + App.profile().name)));
+    root.appendChild(h('div', { class: 'row-btns pad' }, h('button', { class: 'btn ghost', onclick: openImport }, icon('link', 18), 'Importuj kanał z YouTube')));
     root.appendChild(h('div', { class: 'row-btns pad' }, h('button', { class: 'btn ghost', onclick: () => openData() }, icon('db', 18), 'Kopia i dane'), h('button', { class: 'btn ghost', onclick: () => openSettings() }, icon('gear', 18), 'Ustawienia')));
     return root;
   }

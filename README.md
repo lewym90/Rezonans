@@ -70,6 +70,11 @@ Ustawienia → Pobierz kopię. Dane (kanały, utwory) są w localStorage tej prz
 - Kontrola kanału: ostrzeżenie, gdy język tytułu lub tekstu nie pasuje do kanału albo pojawia się nazwa innego kanału (w karcie, w Centrum premier i przed renderem).
 - Karta utworu: wybór kanału, wersje tekstu z przywracaniem, wersje parametrów Suno, wyniki po 28 dniach. Dla filmów wysłanych z aplikacji wyniki 7 i 28 dni wpisują się same przy pobraniu danych z YouTube.
 
+## Wersja 50: DNA Track i laboratorium Suno
+- DNA Track (Kanały → DNA Track): symbole użyte i nieużyte, najczęstsze motywy, linie powtarzające się między utworami, hasła stylu, tempo, struktury, ostrzeżenie o powtarzanych rozwiązaniach.
+- Kontrola podobieństwa do katalogu kanału (tytuł, motywy, refren, styl, symbol, tempo) w Pomyśle, w pakiecie Suno i w karcie utworu.
+- Laboratorium Suno (Suno → Biblioteka): style z utworów, wzorców kanału i zapisane z generatora; gwiazdka „sprawdzony”, średnie wyniki utworów, porównanie 2–3 stylów, katalog wokali, instrumentów i struktur.
+
 ## Historia zmian (skrót)
 - v29: zawsze nowy tekst do analizowanego utworu, układ na tablet i laptop.
 - v30: Warhead Bass zamiast Willa Hayes, teledysk w stylu marki, miniatury 3+3, ścieżka „Mam gotowy utwór”.
