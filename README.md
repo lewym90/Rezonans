@@ -64,6 +64,12 @@ Ustawienia → Pobierz kopię. Dane (kanały, utwory) są w localStorage tej prz
 - Dane: wersja schematu z migracjami, mp3 i tła zapisane w IndexedDB, automatyczne kopie w telefonie (codziennie i przed aktualizacją), eksport i import całości (z mp3 lub bez), raport błędów.
 - Utwory: duplikowanie projektu, historia zdarzeń.
 
+## Wersja 49: Audio Master Check i Centrum premier
+- Audio Master Check (js/master.js), liczony w telefonie: głośność LUFS według ITU-R BS.1770 (zgodna z ffmpeg ebur128), True Peak z nadpróbkowaniem 4x, przestery i ścięte szczyty, dynamika (PLR, LRA), cisza na początku i końcu, balans, korelacja stereo, rozkład pasm, górna granica pasma. Zakresy zależą od gatunku kanału, nie jedna liczba dla wszystkich. Raport pojawia się po wczytaniu mp3 i w karcie utworu.
+- Centrum premier w zakładce Utwory: 12 kratek gotowości (termin, plik, jakość, teledysk, miniatura, opis, Shorty, wysyłka, playlista, po premierze, wyniki 7 i 28 dni).
+- Kontrola kanału: ostrzeżenie, gdy język tytułu lub tekstu nie pasuje do kanału albo pojawia się nazwa innego kanału (w karcie, w Centrum premier i przed renderem).
+- Karta utworu: wybór kanału, wersje tekstu z przywracaniem, wersje parametrów Suno, wyniki po 28 dniach. Dla filmów wysłanych z aplikacji wyniki 7 i 28 dni wpisują się same przy pobraniu danych z YouTube.
+
 ## Historia zmian (skrót)
 - v29: zawsze nowy tekst do analizowanego utworu, układ na tablet i laptop.
 - v30: Warhead Bass zamiast Willa Hayes, teledysk w stylu marki, miniatury 3+3, ścieżka „Mam gotowy utwór”.

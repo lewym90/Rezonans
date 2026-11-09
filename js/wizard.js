@@ -44,12 +44,13 @@
       } else if (cur === 2) {
         const has = S.hasAudio(id), M = S.mem(id);
         if (!has && s.mp3 && !M.restoreTried && !M.restoring) setTimeout(() => S.restore(id, render), 30);
-        const fi = h('input', { type: 'file', accept: 'audio/*,.mp3,.wav,.m4a', onchange: async (e) => { const f = e.target.files[0]; if (!f) return; M.status = 'Analizuję utwór…'; render(); try { await S.loadFile(id, f); M.status = ''; s.done[2] = true; go(3); } catch (er) { M.status = 'Nie udało się wczytać pliku: ' + er.message; render(); } } });
+        const fi = h('input', { type: 'file', accept: 'audio/*,.mp3,.wav,.m4a', onchange: async (e) => { const f = e.target.files[0]; if (!f) return; M.status = 'Analizuję utwór…'; render(); try { await S.loadFile(id, f); M.status = ''; s.done[2] = true; try { App.master.run(id); } catch (e2) { /* pomiar jest dodatkiem */ } render(); } catch (er) { M.status = 'Nie udało się wczytać pliku: ' + er.message; render(); } } });
         body = h('div', { class: 'stack' },
           ol(['W Suno otwórz wybraną piosenkę, dotknij ⋯ (trzy kropki) → Download → MP3 Audio.', 'Plik zapisze się na telefonie. Na iPhonie jest w aplikacji Pliki, w folderze Pobrane.', 'Wróć tutaj i kliknij poniżej, żeby wybrać ten plik.']),
           h('label', { class: 'btn big filebtn' }, icon('plus', 18), has ? 'Wybierz inny plik mp3' : 'Wybierz plik mp3', fi),
           M.status ? h('p', { class: 'hint' }, M.status) : null,
-          has ? h('div', { class: 'okbox' }, h('b', null, 'Plik wczytany: ' + (s.mp3 || '')), h('p', { class: 'muted small' }, 'Aplikacja wykryła tempo ok. ' + Math.round(M.an.bpm) + ' bpm. Refren ustalę dokładniej po spisaniu napisów.')) : null,
+          has ? h('div', { class: 'okbox' }, h('b', null, 'Plik wczytany: ' + (s.mp3 || '')), h('p', { class: 'muted small' }, 'Tempo ok. ' + Math.round(M.an.bpm) + ' BPM. Plik zapisany w telefonie.')) : null,
+          has ? h('div', { class: 'stack' }, h('h3', null, 'Audio Master Check'), App.master.view(id, render)) : null,
           h('p', { class: 'muted small' }, 'Plik zostaje w pamięci aplikacji. Jeśli masz klucz Gemini, przy przygotowaniu teledysku nagranie jest jednorazowo wysyłane do Gemini, żeby spisać napisy ze słuchu. Nie jest nigdzie zapisywane przez aplikację.'));
       } else if (cur === 3) {
         body = h('div', { class: 'stack' },

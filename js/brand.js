@@ -264,7 +264,7 @@
     }
     const pick = (list, w, selKey, label, vertical) => h('div', { class: 'stack' }, h('span', { class: 'flabel' }, label),
       h('div', { class: 'thumbs' + (vertical ? '' : ' wide') }, list.map((c, i) => { const sm = small(c, w); sm.className = 'thumb' + (i === (M[selKey] || 0) ? ' sel' : ''); sm.onclick = () => { M[selKey] = i; render(); }; return sm; })),
-      h('button', { class: 'btn ghost', onclick: guard(async () => { const b = await new Promise((r) => list[M[selKey] || 0].toBlob(r, 'image/jpeg', 0.92)); const nm = (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + (vertical ? '_9x16.jpg' : '_16x9.jpg'); S.save(b, nm, 'share').catch(() => S.save(b, nm, 'file')); }) }, icon('copy', 18), 'Zapisz wybraną miniaturę'));
+      h('button', { class: 'btn ghost', onclick: guard(async () => { const b = await new Promise((r) => list[M[selKey] || 0].toBlob(r, 'image/jpeg', 0.92)); const nm = (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + (vertical ? '_9x16.jpg' : '_16x9.jpg'); if (!vertical) { s.thumbDone = true; App.save(); } S.save(b, nm, 'share').catch(() => S.save(b, nm, 'file')); }) }, icon('copy', 18), 'Zapisz wybraną miniaturę'));
     out.push(pick(M.tc.c16, 300, 'thumbVar16', 'Miniatura 16:9 (1280×720). Jest też pierwszym kadrem teledysku.', false));
     out.push(pick(M.tc.c9, 170, 'thumbVar9', 'Miniatura Shorta 9:16 (1080×1920). Jest pierwszym kadrem Shorta.', true));
     return out;

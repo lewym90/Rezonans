@@ -571,7 +571,7 @@
     const meta = { title: short ? (pack.shortTitles[0] || pack.hooks[0] || s.title) : pack.titles[0], description: pack.description, tags: pack.tags.join(',').length > 480 ? pack.tags.slice(0, 12) : pack.tags, lang: p.lang };
     await YT.login(p);
     const vid = await YT.upload(blob, meta, onProgress, p); s.yt = s.yt || {}; s.yt[short ? 'short' : 'full'] = vid; App.save();
-    let thumbErr = null; if (!short) { try { await YT.thumb(vid, await S.thumb(S.mk(id)), p); } catch (e) { thumbErr = e.message; } }
+    let thumbErr = null; if (!short) { try { await YT.thumb(vid, await S.thumb(S.mk(id)), p); s.thumbDone = true; s.thumbErr = false; } catch (e) { thumbErr = e.message; s.thumbErr = true; } App.save(); }
     return { id: vid, channel: YT.channel, thumbErr };
   };
 
@@ -608,14 +608,15 @@
       let free = null; try { const e = await navigator.storage.estimate(); free = (e.quota - e.usage) / 1048576; } catch (er) { /* brak danych */ }
       const msg = 'Render ' + (short ? 'Shorta 9:16' : 'filmu 16:9') + ' potrwa ok. ' + mmss(len) + ' (tyle, ile ' + (short ? 'fragment' : 'utwór') + ').\nPlik: ok. ' + mbEst + ' MB.' + (free != null ? '\nWolne miejsce dla aplikacji: ok. ' + Math.round(free) + ' MB.' : '') + '\n\nNie wychodź z aplikacji i nie blokuj ekranu, bo nagrywanie się przerwie. Zacząć?';
       if (free != null && free < mbEst * 2.5) { if (!confirm('Mało miejsca dla aplikacji (ok. ' + Math.round(free) + ' MB). Render może się nie udać.\n\n' + msg)) return false; return true; }
-      return confirm(msg);
+      const cw = App.channelCheck ? App.channelCheck(s) : [];
+      return confirm((cw.length ? 'UWAGA: ' + cw.join(' ') + '\n\n' : '') + msg);
     };
     const renderTo = (short) => guard(async () => {
       if (M.running) { toast('Trwa przygotowanie teledysku. Poczekaj na koniec.'); return; }
       if (!(await preflight(short))) return;
       setBar(0);
       const r = await S.renderVideo(songId, short, setBar); const url = URL.createObjectURL(r.blob);
-      M.rendered = M.rendered || {}; M.rendered[short ? 'short' : 'full'] = true; s.history = (s.history || []).concat({ at: Date.now(), x: 'Wyrenderowano ' + (short ? 'Short 9:16' : 'film 16:9') + ' (' + Math.round(r.blob.size / 1e6) + ' MB)' }); App.save();
+      M.rendered = M.rendered || {}; M.rendered[short ? 'short' : 'full'] = true; s.rendered = Object.assign({}, s.rendered, { [short ? 'short' : 'full']: Date.now() }); s.history = (s.history || []).concat({ at: Date.now(), x: 'Wyrenderowano ' + (short ? 'Short 9:16' : 'film 16:9') + ' (' + Math.round(r.blob.size / 1e6) + ' MB)' }); App.save();
       out.textContent = '';
       out.appendChild(h('video', { src: url, controls: true, playsinline: true, class: 'studio-cv', style: { aspectRatio: r.W + '/' + r.H, maxHeight: '60vh' } }));
       out.appendChild(h('button', { class: 'btn big', onclick: () => S.save(r.blob, r.name, 'share').catch((er) => toast(er.message)) }, icon('download', 18), 'Do galerii: Udostępnij → Zapisz wideo (' + Math.round(r.blob.size / 1e6) + ' MB)'));
@@ -629,7 +630,7 @@
     showStill();
 
     /* stan kroków: 1 Analiza, 2 Napisy, 3 Tła, 4 Render */
-    const st1 = !!M.an, st2 = !!M.prepared || !!M.exact, st3 = !!(M.heroes && M.heroes.length && M.heroPicked), st4 = !!(M.rendered && (M.rendered.full || M.rendered.short));
+    const st1 = !!M.an, st2 = !!M.prepared || !!M.exact, st3 = !!(M.heroes && M.heroes.length && M.heroPicked), st4 = !!((M.rendered && (M.rendered.full || M.rendered.short)) || (s.rendered && s.rendered.full));
     const flags = [st1, st2, st3, st4], cur = M.running ? 1 : flags.findIndex((x) => !x);
     const names = ['Analiza', 'Napisy', 'Tła', 'Render'];
     const steps = h('div', { class: 'steps4' });

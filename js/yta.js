@@ -69,6 +69,20 @@
     if (hist.length && hist[hist.length - 1].d === today) hist[hist.length - 1] = entry; else hist.push(entry);
     if (hist.length > 400) hist.splice(0, hist.length - 400);
     p.stats = Object.assign({}, p.stats, { subs: p.yt.subs, views: p.yt.views }, hours365 != null ? { hours: hours365 } : {});
+    // wyniki 7 i 28 dni dla utworów wysłanych z aplikacji (film ma zapisany identyfikator)
+    let filled = 0;
+    for (const s of App.songsOf(p.id)) {
+      const vid = s.yt && s.yt.full; if (!vid || !s.publishAt) continue;
+      const t0 = new Date(s.publishAt), age = (Date.now() - t0.getTime()) / 864e5;
+      for (const [n, key] of [[7, 'results'], [28, 'results28']]) {
+        if (age < n + 2 || (s[key] && Number(s[key].views) > 0 && s[key].auto)) continue;
+        try {
+          const r = rows(await rep(token, { startDate: iso(t0), endDate: iso(new Date(t0.getTime() + (n - 1) * 864e5)), filters: 'video==' + vid, metrics: 'views,averageViewPercentage,subscribersGained,subscribersLost' }))[0];
+          if (r) { s[key] = { views: +r.views || 0, avp: Math.round((+r.averageViewPercentage || 0) * 10) / 10, subs: (+r.subscribersGained || 0) - (+r.subscribersLost || 0), auto: true }; filled++; }
+        } catch (e) { /* film mógł zostać usunięty */ }
+      }
+    }
+    p.yt.filled = filled;
     App.save();
     return p.yt;
   };

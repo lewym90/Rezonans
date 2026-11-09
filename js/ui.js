@@ -475,7 +475,7 @@
           h('button', { class: 'btn ghost', onclick: () => copy(E.chatPrompt(p, Object.assign({}, idea, { title: st.title }), st.variant, st.clean), 'Prompt skopiowany. Wklej go do dowolnego czatu AI.') }, icon('copy', 18), 'Kopiuj prompt do czatu')),
         h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: st.clean, onchange: (e) => { st.clean = e.target.checked; } }), h('span', null, 'Czysta wersja bez wulgaryzmów w prompcie')),
         h('button', { class: 'btn big', onclick: () => {
-          const s = { id: App.uid('song'), profileId: p.id, title: st.title, premise: idea.premise, variantId: st.variant, styleName: st.styleName, styleSig: st.sig, style: st.style, lyrics: st.lyrics, symbol: idea.symbol, scenes: idea.scenes || [], status: 'suno', created: Date.now(), checks: {}, results: {} };
+          const s = { sunoVer: [{ at: Date.now(), label: st.styleName, styles: st.style }], lyricsVer: [{ at: Date.now(), text: st.lyrics, src: 'szkic' }], history: [{ at: Date.now(), x: 'Utworzony z pomysłu „' + idea.title + '”' }], id: App.uid('song'), profileId: p.id, title: st.title, premise: idea.premise, variantId: st.variant, styleName: st.styleName, styleSig: st.sig, style: st.style, lyrics: st.lyrics, symbol: idea.symbol, scenes: idea.scenes || [], status: 'suno', created: Date.now(), checks: {}, results: {} };
           App.state.songs.push(s); s.step = 1; App.save(); closeSheet(); App.state.ui = {}; UI.go('songs'); setTimeout(() => App.wizard.open(s.id, 1), 260);
         } }, 'Zapisz utwór'));
     });
@@ -512,7 +512,8 @@
         h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: st.clean, onchange: (e) => { st.clean = e.target.checked; } }), h('span', null, 'Czysta wersja bez wulgaryzmów (przy kolejnym generowaniu)')),
         h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: run }, icon('refresh', 18), 'Wygeneruj ponownie'), h('button', { class: 'btn ghost', onclick: () => copy(all(), 'Wszystko skopiowane') }, icon('copy', 18), 'Kopiuj wszystko')),
         h('button', { class: 'btn big', onclick: () => {
-          const s = { id: App.uid('song'), profileId: p.id, title: st.title, premise: idea.premise, variantId: idea.branch || (p.styleVariants[0] || {}).id, styleName: (E.variantOf(p, idea.branch) || {}).name || v.styles.split(',')[0], styleSig: v.styles.split(',').slice(0, 5).map((x) => x.trim()), style: v.styles, exclude: v.exclude, weirdness: v.weirdness, influence: v.influence, tip: pk.tip, lyrics: pk.lyrics, symbol: idea.symbol, scenes: idea.scenes || [], status: 'suno', created: Date.now(), checks: {}, results: {} };
+          const sunoVer = pk.variants.map((x) => ({ at: Date.now(), label: x.label, styles: x.styles, exclude: x.exclude, weirdness: x.weirdness, influence: x.influence }));
+          const s = { sunoVer, lyricsVer: [{ at: Date.now(), text: pk.lyrics, src: 'Gemini' }], history: [{ at: Date.now(), x: 'Utworzony z pomysłu „' + idea.title + '” (pakiet Gemini, wariant ' + v.label + ')' }], id: App.uid('song'), profileId: p.id, title: st.title, premise: idea.premise, variantId: idea.branch || (p.styleVariants[0] || {}).id, styleName: (E.variantOf(p, idea.branch) || {}).name || v.styles.split(',')[0], styleSig: v.styles.split(',').slice(0, 5).map((x) => x.trim()), style: v.styles, exclude: v.exclude, weirdness: v.weirdness, influence: v.influence, tip: pk.tip, lyrics: pk.lyrics, symbol: idea.symbol, scenes: idea.scenes || [], status: 'suno', created: Date.now(), checks: {}, results: {} };
           App.state.songs.push(s); s.step = 1; App.save(); closeSheet(); App.state.ui = {}; UI.go('songs'); setTimeout(() => App.wizard.open(s.id, 1), 260);
         } }, 'Zapisz utwór i prowadź dalej'));
     });
@@ -521,6 +522,50 @@
 
 
   /* ================= UTWORY ================= */
+  /* kontrola, czy publikacja nie trafia do złego kanału (język tytułu i tekstu) */
+  App.channelCheck = function (s) {
+    const p = App.profile(s.profileId), out = [], txt = ((s.title || '') + '\n' + (s.lyrics || '')).replace(/\[[^\]]*\]/g, ' ');
+    const pl = (txt.match(/[ąćęłńóśźż]/gi) || []).length, words = txt.toLowerCase().match(/[a-ząćęłńóśźż']+/g) || [];
+    const en = words.filter((w) => /^(the|you|your|my|and|i'm|i|we|in|on|of|to|it|is|are|me|this|that|with|for|no|not|never|all|up|down|like)$/.test(w)).length;
+    const plw = words.filter((w) => /^(i|nie|się|jak|to|na|w|z|że|mnie|mój|moja|jest|tak|już|tylko|dla|do|po|bo|ten|ta)$/.test(w)).length;
+    if (p.lang === 'en' && (pl >= 3 || plw > en + 3)) out.push('Tytuł lub tekst wygląda na polski, a kanał ' + p.name + ' jest po angielsku. Sprawdź, czy to właściwy kanał.');
+    if (p.lang === 'pl' && words.length > 20 && pl === 0 && en > plw + 3) out.push('Tekst wygląda na angielski, a kanał ' + p.name + ' jest po polsku. Sprawdź, czy to właściwy kanał.');
+    App.state.profiles.forEach((o) => { if (o.id !== p.id && o.name && txt.toLowerCase().includes(o.name.toLowerCase())) out.push('W tytule lub tekście jest nazwa innego kanału („' + o.name + '”).'); });
+    return out;
+  };
+  /* gotowość wydania: jedna kratka na każdy element */
+  App.readiness = function (s) {
+    const p = App.profile(s.profileId), c = s.checks || {}, yt = s.yt || {}, rn = s.rendered || {}, r = s.results || {}, r28 = s.results28 || {};
+    const mr = s.master && s.master.m && App.master ? App.master.report(s.master.m, p) : null;
+    const pubT = s.publishAt ? new Date(s.publishAt).getTime() : 0, age = pubT ? (Date.now() - pubT) / 864e5 : -1;
+    const cell = (k, ic, st) => ({ k, ic, st });
+    return [
+      cell('Termin', 'clock', s.publishAt ? 'ok' : 'warn'),
+      cell('Plik mp3', 'note', s.mp3 ? 'ok' : ''),
+      cell('Jakość', 'shield', mr ? (mr.bad ? 'bad' : mr.warn > 2 ? 'warn' : 'ok') : ''),
+      cell('Teledysk', 'film', rn.full || c.video ? 'ok' : ''),
+      cell('Miniatura', 'playbox', s.thumbDone || (yt.full && !s.thumbErr) ? 'ok' : ''),
+      cell('Opis', 'copy', c.copy || yt.full ? 'ok' : ''),
+      cell('Shorty', 'flash', c.sh1 && c.sh2 ? 'ok' : (rn.short || c.sh1) ? 'warn' : ''),
+      cell('Wysłany', 'upload', yt.full || c.upload ? 'ok' : (pubT && age > 0 ? 'bad' : '')),
+      cell('Playlista', 'notes', c.pl1 ? 'ok' : ''),
+      cell('Po premierze', 'check', c.pin && c.cm ? 'ok' : (c.pin || c.cm) ? 'warn' : ''),
+      cell('Wyniki 7 dni', 'chart', r.views ? 'ok' : age >= 7 ? 'warn' : ''),
+      cell('Wyniki 28 dni', 'chart', r28.views ? 'ok' : age >= 28 ? 'warn' : '')
+    ];
+  };
+  function releaseControl(p) {
+    const list = App.songsOf(p.id).filter((s) => !(s.results28 && s.results28.views)).sort((a, b) => (a.publishAt ? new Date(a.publishAt).getTime() : 9e15) - (b.publishAt ? new Date(b.publishAt).getTime() : 9e15) || b.created - a.created).slice(0, 6);
+    if (!list.length) return null;
+    return h('section', { class: 'block' }, h('h3', null, 'Centrum premier'),
+      h('div', { class: 'rc' }, list.map((s) => {
+        const cells = App.readiness(s), ok = cells.filter((x) => x.st === 'ok').length, warns = App.channelCheck(s);
+        return h('div', { class: 'rc-item' + (warns.length ? ' alert' : ''), onclick: () => openSongDetails(s.id) },
+          h('div', { class: 'rc-top' }, ring(ok, cells.length, 46), h('div', { class: 'row-m' }, h('b', null, s.title || 'Bez tytułu'), h('span', { class: 'muted small' }, p.name + ' · ' + (s.publishAt ? 'premiera ' + App.fmtDT(s.publishAt) : 'bez terminu'))), icon('chev', 18)),
+          h('div', { class: 'rc-grid' }, cells.map((x) => h('div', { class: 'rc-c ' + x.st }, icon(x.st === 'ok' ? 'check' : x.st === 'bad' ? 'warn' : x.ic, 18, 2), h('span', null, x.k)))),
+          warns.map((w) => h('p', { class: 'rc-warn' }, icon('warn', 16, 2), h('span', null, w))));
+      })));
+  }
   const stPill = (s) => { const st = s.status || 'szkic'; return h('span', { class: 'st-pill' + (st === 'opublikowany' ? ' ok' : st === 'gotowy' || st === 'suno' ? ' go' : '') }, st); };
   function renderSongs() {
     const p = App.profile(), songs = App.songsOf().sort((a, b) => b.created - a.created);
@@ -530,7 +575,8 @@
       h('button', { class: 'tile a', style: { minHeight: '84px' }, onclick: () => { App.state.ui = { ideaMode: 'own' }; UI.go('ideas'); } }, icon('bulb', 28, 1.6), 'Nowy pomysł'),
       h('button', { class: 'tile b', style: { minHeight: '84px' }, onclick: () => App.own.open() }, icon('note', 28, 1.8), 'Mam gotowy utwór')));
     if (!songs.length) root.appendChild(h('div', { class: 'emptystate' }, h('b', null, 'Brak utworów w tym kanale'), h('p', null, 'Zacznij od pomysłu albo wgraj utwór, który już masz.')));
-    else root.appendChild(h('div', { class: 'list' }, songs.map((s) => {
+    else { const rc = releaseControl(p); if (rc) root.appendChild(rc); root.appendChild(h('h3', { class: 'sec', style: { padding: '0 16px' } }, 'Wszystkie utwory')); }
+    if (songs.length) root.appendChild(h('div', { class: 'list' }, songs.map((s) => {
       const r = release(p, s), done = r.items.filter((i) => i.done).length, st = App.wizard.stepOf(s);
       return h('button', { class: 'row link', onclick: () => openSong(s.id) },
         ring(done, r.items.length, 46),
@@ -545,7 +591,7 @@
   function openSong(id) { App.wizard.open(id); }
   function duplicate(s) {
     const c = App.clone(s);
-    Object.assign(c, { id: App.uid('song'), title: (s.title || 'Utwór') + ' (kopia)', created: Date.now(), status: 'szkic', publishAt: '', checks: {}, results: {}, done: {}, step: 1, mp3: '', audioSaved: false, caps: null, yt: null, history: [{ at: Date.now(), x: 'Utworzony jako kopia „' + (s.title || '') + '”' }] });
+    Object.assign(c, { id: App.uid('song'), title: (s.title || 'Utwór') + ' (kopia)', created: Date.now(), status: 'szkic', publishAt: '', checks: {}, results: {}, done: {}, step: 1, mp3: '', audioSaved: false, caps: null, yt: null, rendered: null, master: null, results28: {}, thumbDone: false, lyricsVer: [], history: [{ at: Date.now(), x: 'Utworzony jako kopia „' + (s.title || '') + '”' }] });
     App.state.songs.push(c); App.save(); return c;
   }
   function openSongDetails(id) {
@@ -556,16 +602,30 @@
       const pack = E.publish(p, s);
       const save = () => App.save();
       const r = release(p, s), done = r.items.filter((i) => i.done).length;
-      const lyr = h('textarea', { rows: 8, class: 'lyr', placeholder: 'Wklej tekst piosenki (z Suno)', value: s.lyrics || '', oninput: (e) => { s.lyrics = e.target.value; save(); } });
+      const before = s.lyrics || '';
+      const lyr = h('textarea', { rows: 8, class: 'lyr', placeholder: 'Wklej tekst piosenki (z Suno)', value: s.lyrics || '', oninput: (e) => { s.lyrics = e.target.value; save(); }, onchange: () => { if (before && before !== s.lyrics) { s.lyricsVer = (s.lyricsVer || []).concat({ at: Date.now(), text: before, src: 'przed edycją' }).slice(-12); s.history = (s.history || []).concat({ at: Date.now(), x: 'Zmieniono tekst' }); save(); } } });
+      const warns = App.channelCheck(s), M = App.studio.mem(s.id);
       const desc = h('textarea', { rows: 11, value: pack.description });
       const row = (txt) => h('div', { class: 'cp' }, h('span', null, txt), copyBtn(txt));
       const pub = s.publishAt ? App.toLocalInput(new Date(s.publishAt)) : App.toLocalInput(App.nextAt(p.publish.time));
       return h('div', { class: 'stack' },
         h('div', { class: 'sum' }, ring(done, r.items.length, 64), h('div', null, h('b', null, done === r.items.length ? 'Wydanie zakończone' : 'Do zrobienia: ' + (r.items.length - done)), h('p', { class: 'muted small' }, 'Kanał: ' + p.name + (s.mp3 ? ' · plik: ' + s.mp3 + (s.audioSaved ? ' (zapisany w telefonie)' : '') : '')))),
+        warns.length ? h('div', { class: 'warnbox' }, warns.map((w) => h('p', null, icon('warn', 18), w))) : null,
+        h('div', { class: 'rc-grid' }, App.readiness(s).map((x) => h('div', { class: 'rc-c ' + x.st }, icon(x.st === 'ok' ? 'check' : x.st === 'bad' ? 'warn' : x.ic, 18, 2), h('span', null, x.k)))),
         field('Tytuł', h('input', { value: s.title || '', oninput: (e) => { s.title = e.target.value; save(); } })),
+        h('div', null, h('span', { class: 'flabel' }, 'Kanał'), h('div', { class: 'chips' }, App.state.profiles.map((o) => chip(o.name, s.profileId === o.id, () => { if (s.profileId === o.id) return; if (confirm('Przenieść utwór do kanału ' + o.name + '?')) { s.profileId = o.id; s.history = (s.history || []).concat({ at: Date.now(), x: 'Przeniesiono do kanału ' + o.name }); App.state.activeProfile = o.id; save(); UI.applyTheme(); render(); } })))),
         h('div', null, h('span', { class: 'flabel' }, 'Status'), h('div', { class: 'chips' }, ['szkic', 'suno', 'gotowy', 'opublikowany'].map((x) => chip(x, s.status === x, () => { s.status = x; save(); render(); })))),
         field('Premiera', h('input', { type: 'datetime-local', value: pub, onchange: (e) => { s.publishAt = e.target.value ? new Date(e.target.value).toISOString() : ''; save(); render(); } })),
         field('Tekst', lyr, copyBtn(() => s.lyrics, 'Tekst')),
+        (s.lyricsVer && s.lyricsVer.length) ? h('details', { class: 'phase' }, h('summary', null, h('b', null, 'Wersje tekstu'), h('span', { class: 'muted small' }, s.lyricsVer.length + ' zapisanych')),
+          h('ul', { class: 'vers' }, s.lyricsVer.slice().reverse().map((v) => h('li', null, h('span', null, App.fmtDT(new Date(v.at).toISOString()) + ' · ' + v.src + ' · ' + v.text.split('\n').filter(Boolean).length + ' linii'), h('button', { class: 'btn ghost sm', onclick: () => { if (!confirm('Przywrócić tę wersję tekstu? Obecna zostanie zapisana jako wersja.')) return; s.lyricsVer.push({ at: Date.now(), text: s.lyrics || '', src: 'przed przywróceniem' }); s.lyrics = v.text; save(); render(); } }, 'Przywróć'))))) : null,
+        (s.style || (s.sunoVer && s.sunoVer.length)) ? h('details', { class: 'phase' }, h('summary', null, h('b', null, 'Parametry Suno'), h('span', { class: 'muted small' }, s.weirdness ? 'W ' + s.weirdness + '% · SI ' + s.influence + '%' : 'styl')),
+          h('div', { class: 'stack', style: { padding: '6px 0 12px' } },
+            s.style ? h('div', { class: 'cp' }, h('span', { class: 'small' }, s.style), copyBtn(s.style, 'Styl')) : null,
+            s.exclude ? h('div', { class: 'cp' }, h('span', { class: 'small' }, 'Exclude: ' + s.exclude), copyBtn(s.exclude, 'Exclude')) : null,
+            (s.sunoVer || []).length > 1 ? h('ul', { class: 'vers' }, s.sunoVer.slice().reverse().map((v) => h('li', null, h('span', null, App.fmtDT(new Date(v.at).toISOString()) + ' · ' + (v.label || 'wersja')), copyBtn(v.styles, 'Styl')))) : null)) : null,
+        h('details', { class: 'phase', open: !!(s.master && s.master.m) }, h('summary', null, h('b', null, 'Audio Master Check'), h('span', { class: 'muted small' }, s.master && s.master.m ? App.master.report(s.master.m, p).verdict : 'nie sprawdzono')),
+          h('div', { style: { padding: '6px 0 12px' } }, (!M.an && s.mp3 && !M.restoreTried) ? (setTimeout(() => App.studio.restore(s.id, render), 30), h('p', { class: 'muted small' }, 'Wczytuję zapisany plik…')) : App.master.view(s.id, render))),
         field('Początek refrenu (mm:ss)', h('input', { value: s.chorusStart || '', placeholder: '0:48', inputmode: 'numeric', oninput: (e) => { s.chorusStart = e.target.value; s.chorusAuto = false; save(); } })),
         h('button', { class: 'btn ghost', onclick: render }, icon('refresh', 18), 'Odśwież pakiet po zmianach'),
 
@@ -587,6 +647,9 @@
 
         h('h3', { class: 'sec' }, 'Wyniki po 7 dniach'),
         h('div', { class: 'grid3' }, [['views', 'Wyświetlenia'], ['subs', 'Subskrypcje'], ['avp', 'Obejrzenie %']].map((f) => field(f[1], h('input', { type: 'number', inputmode: 'decimal', value: (s.results || {})[f[0]] || '', oninput: (e) => { s.results = s.results || {}; s.results[f[0]] = e.target.value; save(); } })))),
+        h('h3', { class: 'sec' }, 'Wyniki po 28 dniach'),
+        h('div', { class: 'grid3' }, [['views', 'Wyświetlenia'], ['subs', 'Subskrypcje'], ['avp', 'Obejrzenie %']].map((f) => field(f[1], h('input', { type: 'number', inputmode: 'decimal', value: (s.results28 || {})[f[0]] || '', oninput: (e) => { s.results28 = s.results28 || {}; s.results28[f[0]] = e.target.value; save(); } })))),
+        s.yt && s.yt.full ? h('p', { class: 'muted small' }, 'Film jest połączony z YouTube, więc wyniki 7 i 28 dni wpiszą się same przy „Pobierz dane” w Wynikach.') : null,
         (s.history && s.history.length) ? h('div', null, h('h3', { class: 'sec' }, 'Historia'), h('ul', { class: 'sched' }, s.history.slice(-8).reverse().map((x) => h('li', null, h('span', null, x.x), h('b', null, App.fmtDT(new Date(x.at).toISOString())))))) : null,
         h('button', { class: 'btn ghost', onclick: () => { const c = duplicate(s); closeSheet(true); toast('Utworzono kopię projektu'); UI.go('songs'); setTimeout(() => openSongDetails(c.id), 300); } }, icon('dup', 18), 'Duplikuj jako nowy utwór'),
         h('button', { class: 'btn ghost danger', onclick: () => { if (confirm('Usunąć ten utwór razem z zapisanym plikiem mp3?')) { App.state.songs = App.state.songs.filter((x) => x.id !== s.id); if (App.db) App.db.dropAudio(s.id); save(); closeSheet(); UI.render(); } } }, icon('trash', 18), 'Usuń utwór'));
