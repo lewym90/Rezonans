@@ -5,7 +5,7 @@
   const mmss = (t) => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
   const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; };
   const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
-  const font = (px, w) => (w || 800) + ' ' + px + 'px "Bricolage Grotesque", system-ui, -apple-system, sans-serif';
+  const font = (px, w) => (w || 800) + ' ' + px + 'px "Manrope", "Inter", system-ui, -apple-system, sans-serif';
 
   S.mode = () => 'brand';
 
@@ -72,6 +72,7 @@
   /* ---------- renderer klatek w stylu „marka” ---------- */
   S.makeBrandRenderer = function (R) {
     const { p, an } = R, pal = p.palette, fx = (p.brand && p.brand.fx) || 'embers', pl = p.lang === 'pl';
+    const FX = Object.assign({ logo: true, flash: true, waves: true, particles: true }, (p.studio && p.studio.fx) || {}, R.fx || {});
     const bt = R.bass || { kicks: [], env: new Float32Array(1), fps: 200 };
     const N_AMB = 90;
     return function draw(ctx, t, freq, o) {
@@ -82,16 +83,28 @@
       const zoom = 1.04 + 0.02 * Math.min(1, rel / Math.max(1, total)) + 0.035 * k;
       cover(ctx, R.hero, W, H, zoom, 0, 0);
       const cx = W / 2, cy = vert ? H * 0.77 : H * 0.72, box = vert ? W * 0.24 : H * 0.2;
+      // błysk na mocnych uderzeniach
+      if (FX.flash && k > 0.35) { ctx.fillStyle = 'rgba(255,248,236,' + Math.min(0.16, 0.13 * (k - 0.35) * 1.6) + ')'; ctx.fillRect(0, 0, W, H); }
+      // fale uderzeniowe: pierścienie od logo
+      if (FX.waves) {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        for (let j = ko.i; j >= 0 && t - bt.kicks[j].t < 0.9; j--) {
+          const kk = bt.kicks[j]; if (kk.s < 0.5) continue; const tau = t - kk.t, u = tau / 0.9;
+          ctx.strokeStyle = hexA(pal.accent, Math.pow(1 - u, 2) * 0.75 * Math.min(1, kk.s)); ctx.lineWidth = S1 * (0.008 * (1 - u) + 0.002);
+          ctx.beginPath(); ctx.arc(cx, cy, box * (0.55 + u * 2.4), 0, 6.2832); ctx.stroke();
+        }
+        ctx.restore();
+      }
       // 3. cząsteczki: jasne, drobne, unoszą się; na uderzeniu basu robią się większe i jaśniejsze
       ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < N_AMB; i++) {
+      if (FX.particles) for (let i = 0; i < N_AMB; i++) {
         const sd = hash(i + 1), sx = hash(i + 101), sp = 14 + sd * 40, ph = hash(i + 201), sz = (0.7 + hash(i + 301) * 2.0) * S1 / 720;
         const run = (t * sp * (0.7 + e) * S1 / 720 + ph * H * 1.2) % (H * 1.2);
         const x = sx * W + Math.sin(t * (0.5 + sd) + i) * 14 * S1 / 720, y = H * 1.05 - run;
         const al = (0.18 + 0.35 * Math.abs(Math.sin(t * (1 + sd * 2) + i))) * (0.6 + 0.9 * Math.min(1, b + k * 0.6));
         ctx.fillStyle = 'rgba(255,244,230,' + Math.min(0.85, al) + ')'; ctx.beginPath(); ctx.arc(x, y, sz * (1 + 0.9 * k), 0, 7); ctx.fill();
       }
-      for (let j = ko.i; j >= 0 && t - bt.kicks[j].t < 1.2; j--) {
+      if (FX.particles) for (let j = ko.i; j >= 0 && t - bt.kicks[j].t < 1.2; j--) {
         const kk = bt.kicks[j]; if (kk.s < 0.6) continue; const tau = t - kk.t, u = tau / 1.2, n = Math.round(8 + 14 * kk.s);
         for (let q = 0; q < n; q++) {
           const ang = hash(j * 31 + q * 7 + 1) * 6.283, spd = (90 + hash(j * 17 + q * 3 + 5) * 300) * kk.s * S1 / 720;
@@ -101,7 +114,7 @@
       }
       ctx.globalCompositeOperation = 'source-over';
       // 2. logo kanału pulsuje na stopę
-      if (R.logo) { const sc = 1 + 0.09 * Math.min(1.1, k) + 0.025 * b; drawLogo(ctx, R.logo, cx, cy, box, sc); }
+      if (R.logo) { const sc = FX.logo ? 1 + 0.09 * Math.min(1.1, k) + 0.025 * b : 1; drawLogo(ctx, R.logo, cx, cy, box, sc); }
       // 4. tytuł i nazwa kanału na dole
       const fa = Math.min(1, rel / 0.7); ctx.globalAlpha = fa; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
       ctx.shadowColor = 'rgba(0,0,0,.85)'; ctx.shadowBlur = S1 * 0.025;
@@ -187,7 +200,23 @@
     const out = []; let fails = 0;
     for (let i = 0; i < 3; i++) { say('Generuję tło ' + (i + 1) + ' z 3…'); try { out.push(await S.genImage(heroPrompt(p, scenes[i]))); } catch (e) { fails++; out.push(S.procArt(p, i + 5)); } }
     if (fails) notes.push(fails + ' z 3 teł zastąpiłem grafiką zastępczą (generator obrazów nie odpowiedział).');
-    M.heroes = out; M.heroSel = 0; M.heroPrompts = scenes; M.tc = null; M.generated = fails < 3;
+    M.heroes = out; M.heroSel = 0; M.heroPrompts = scenes; M.tc = null; M.generated = fails < 3; M.heroPicked = false;
+    S.saveHeroes(id);
+  };
+  /* tła i wybór zapisane w telefonie: po ponownym otwarciu nie trzeba ich generować od nowa (oszczędza limit) */
+  const toBlob = (im) => new Promise((res) => { const c = document.createElement('canvas'); c.width = im.naturalWidth || im.width; c.height = im.naturalHeight || im.height; c.getContext('2d').drawImage(im, 0, 0); c.toBlob(res, 'image/jpeg', 0.9); });
+  S.saveHeroes = async function (id) {
+    const M = S.mem(id); if (!App.db || !M.heroes || !M.heroes.length) return;
+    try { const blobs = []; for (const im of M.heroes) blobs.push(await toBlob(im)); await App.db.put('files', id + ':heroes', { blobs, sel: M.heroSel || 0, picked: !!M.heroPicked, prompts: M.heroPrompts || [], at: Date.now() }); } catch (e) { /* bez zapisu działa dalej */ }
+  };
+  S.saveHeroSel = function (id) { const M = S.mem(id); if (!App.db) return; App.db.get('files', id + ':heroes').then((v) => { if (v) { v.sel = M.heroSel || 0; v.picked = !!M.heroPicked; return App.db.put('files', id + ':heroes', v); } }).catch(() => {}); };
+  S.loadHeroes = async function (id) {
+    const M = S.mem(id); if (!App.db) return false;
+    try {
+      const v = await App.db.get('files', id + ':heroes'); if (!v || !v.blobs || !v.blobs.length) return false;
+      M.heroes = await Promise.all(v.blobs.map((b) => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(b); })));
+      M.heroSel = Math.min(v.sel || 0, M.heroes.length - 1); M.heroPicked = !!v.picked; M.heroPrompts = v.prompts || []; M.tc = null; M.generated = true; return true;
+    } catch (e) { return false; }
   };
   S.newHeroes = async function (id, render) {
     const M = S.mem(id); if (M.running) return; M.running = true; M.notes = [];
@@ -218,15 +247,13 @@
   };
 
   /* ---------- fragmenty panelu: wybór tła, miniatur, napisu ---------- */
+  S.small = (c, w) => small(c, w);
   function small(c, w) { const o = document.createElement('canvas'); o.width = w; o.height = Math.round(w * c.height / c.width); o.getContext('2d').drawImage(c, 0, 0, o.width, o.height); return o; }
   S.brandBlocks = function (songId, render, guard, toast) {
     const h = App.ui.h, icon = App.ui.icon, s = App.song(songId), p = App.profile(s.profileId), M = S.mem(songId), out = [];
     S.loadLogo(p).then(() => { if (!M.logoShown) { M.logoShown = true; render(); } });
     if (!M.heroes || !M.heroes.length) return out;
     const sel = Math.min(M.heroSel || 0, M.heroes.length - 1);
-    out.push(h('div', { class: 'stack' }, h('span', { class: 'flabel' }, '1. Tło teledysku: dotknij, żeby wybrać jedno'),
-      h('div', { class: 'thumbs' }, M.heroes.map((im, i) => { const c = small(im, 240); c.className = 'thumb' + (i === sel ? ' sel' : ''); c.onclick = () => { M.heroSel = i; M.tc = null; render(); }; return c; })),
-      h('button', { class: 'btn ghost', disabled: M.running ? 'true' : null, onclick: () => S.newHeroes(songId, render) }, icon('refresh', 18), 'Wygeneruj inne 3 tła')));
     const words = h('input', { value: (s.thumbUser && s.thumbWords) || (s.title || '').toUpperCase().split(/\s+/).slice(0, 3).join(' '), maxlength: 40, oninput: (e) => { s.thumbWords = e.target.value; s.thumbUser = true; } });
     out.push(h('label', { class: 'field' }, h('span', { class: 'flabel' }, 'Napis na miniaturze (maksymalnie 3 słowa)'), words,
       h('button', { class: 'btn ghost sm', onclick: () => { s.thumbWords = words.value.toUpperCase().trim(); s.thumbUser = true; M.tc = null; App.save(); render(); } }, 'Odśwież miniatury')));
@@ -238,8 +265,8 @@
     const pick = (list, w, selKey, label, vertical) => h('div', { class: 'stack' }, h('span', { class: 'flabel' }, label),
       h('div', { class: 'thumbs' + (vertical ? '' : ' wide') }, list.map((c, i) => { const sm = small(c, w); sm.className = 'thumb' + (i === (M[selKey] || 0) ? ' sel' : ''); sm.onclick = () => { M[selKey] = i; render(); }; return sm; })),
       h('button', { class: 'btn ghost', onclick: guard(async () => { const b = await new Promise((r) => list[M[selKey] || 0].toBlob(r, 'image/jpeg', 0.92)); const nm = (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + (vertical ? '_9x16.jpg' : '_16x9.jpg'); S.save(b, nm, 'share').catch(() => S.save(b, nm, 'file')); }) }, icon('copy', 18), 'Zapisz wybraną miniaturę'));
-    out.push(pick(M.tc.c16, 300, 'thumbVar16', '2. Miniatura 16:9 (1280×720): wybierz jedną. Jest też pierwszym kadrem teledysku.', false));
-    out.push(pick(M.tc.c9, 170, 'thumbVar9', '3. Miniatura Shorta 9:16 (1080×1920): wybierz jedną. Jest pierwszym kadrem Shorta.', true));
+    out.push(pick(M.tc.c16, 300, 'thumbVar16', 'Miniatura 16:9 (1280×720). Jest też pierwszym kadrem teledysku.', false));
+    out.push(pick(M.tc.c9, 170, 'thumbVar9', 'Miniatura Shorta 9:16 (1080×1920). Jest pierwszym kadrem Shorta.', true));
     return out;
   };
 })();

@@ -1,6 +1,6 @@
 # Rezonans
 
-Od pomysłu do publikacji: studio dla twórców muzyki z Suno. Aplikacja działa w przeglądarce (PWA), bez serwera i bez kosztów.
+CREATE. PRODUCE. RELEASE. Studio dla twórców muzyki AI: od pomysłu do publikacji. Aplikacja działa w przeglądarce (PWA), bez serwera i bez kosztów.
 
 Adres: https://lewym90.github.io/Rezonans/
 
@@ -55,6 +55,14 @@ Ustawienia → Pobierz kopię. Dane (kanały, utwory) są w localStorage tej prz
 
 ## Struktura
 `index.html`, `css/app.css`, `js/` (data, store, engine, ai, ui, analytics, studio, brand, own, wizard, generator, awake, main), `worker/`, `assets/logos/`, `sw.js`, `manifest.webmanifest`, `icons/`.
+
+## Wersja 47: nowy wygląd i fundament danych
+- Wygląd według projektu: nowa ikona, fonty Inter, Manrope i IBM Plex Mono, marka złota, akcenty kanału (Warhead: pomarańcz i fiolet, Melodia: złoto i turkus), grafika nagłówka dla każdego kanału (`assets/hero/`).
+- Dziś: Najważniejsze teraz (lista wydania i odliczanie do premiery), Plan na dziś, Najważniejsza decyzja (liczona lokalnie), ostatnie wyniki, dzwonek z powiadomieniami w aplikacji.
+- Wyniki i rozwój (dawniej Plan): YouTube Analytics API (darmowe, tylko odczyt), wykres 7/28/90 dni, porównanie z poprzednim okresem, wnioski z poziomem pewności, prognoza progu z wahaniami.
+- Studio: 4 kroki (Analiza, Napisy, Tła, Render), przełączane efekty zapisywane dla kanału (logo, błyski, fale, cząstki), kontrola przed renderem (czas, rozmiar, miejsce).
+- Dane: wersja schematu z migracjami, mp3 i tła zapisane w IndexedDB, automatyczne kopie w telefonie (codziennie i przed aktualizacją), eksport i import całości (z mp3 lub bez), raport błędów.
+- Utwory: duplikowanie projektu, historia zdarzeń.
 
 ## Historia zmian (skrót)
 - v29: zawsze nowy tekst do analizowanego utworu, układ na tablet i laptop.

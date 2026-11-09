@@ -320,7 +320,7 @@
     if (!App.state.quick) App.state.quick = [];
     const root = h('div', { class: 'screen' });
     const rerender = () => { if (App.state.tab === 'gen') UI.render(); };
-    root.appendChild(h('header', { class: 'hdr' }, h('div', null, h('h1', null, 'Generator Suno'), h('p', { class: 'sub' }, 'Z pomysłu albo z piosenki, którą lubisz. Dostajesz wszystko do Suno.'))));
+    root.appendChild(UI.topbar('Generator Suno', 'Z pomysłu albo z piosenki, którą lubisz'));
     root.appendChild(h('div', { class: 'seg', role: 'tablist' }, [['idea', 'Z pomysłu'], ['ref', 'Z piosenki']].map((m) => h('button', { role: 'tab', 'aria-selected': st.mode === m[0] ? 'true' : 'false', class: st.mode === m[0] ? 'on' : '', onclick: () => { st.mode = m[0]; rerender(); } }, m[1]))));
     if (st.mode === 'ref') { refView(root, st, rerender); return root; }
     const ta = h('textarea', { rows: 4, placeholder: 'Np. idę na siłownię, chcę czegoś potężnego, co rozniesie mi mózg na słuchawkach i pozwoli przerzucić setki kilogramów więcej', value: st.idea, oninput: (e) => { st.idea = e.target.value; } });
@@ -334,7 +334,7 @@
       st.busy = false; rerender();
     };
     root.appendChild(h('div', { class: 'compose' }, ta, seg('Język tekstu', LANG, 'lang'), seg('Wokal', VOC, 'vocal'),
-      h('label', { class: 'field', style: { flexDirection: 'row', alignItems: 'center', gap: '12px' } }, h('input', { type: 'checkbox', checked: st.opts.harsh, onchange: (e) => { st.opts.harsh = e.target.checked; } }), h('span', null, 'Ostre słownictwo dozwolone')),
+      h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: st.opts.harsh, onchange: (e) => { st.opts.harsh = e.target.checked; } }), h('span', null, 'Ostre słownictwo dozwolone')),
       hasKey ? h('button', { class: 'btn big', disabled: st.busy ? 'true' : null, onclick: go }, icon('spark', 18), st.busy ? 'Piszę… (kilkanaście sekund)' : (st.cur ? 'Wygeneruj inną wersję' : 'Wygeneruj dla Suno'))
         : h('div', { class: 'stack' }, h('p', { class: 'muted small' }, 'Bez klucza Gemini nie mogę pisać za Ciebie. Skopiuj gotowy prompt, wklej go do dowolnego czatu AI (ChatGPT, Claude, Gemini) i skopiuj z niego wynik do Suno.'),
           h('button', { class: 'btn big', onclick: () => { if (st.idea.trim().length < 5) { toast('Opisz w zdaniu, czego chcesz posłuchać.'); return; } UI.copy(G.chatPrompt(st.idea, st.opts), 'Prompt skopiowany. Wklej go do czatu AI.'); } }, icon('copy', 18), 'Kopiuj prompt do czatu AI'))));

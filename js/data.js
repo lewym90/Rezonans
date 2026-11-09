@@ -6,7 +6,8 @@
     id: 'melodia', name: 'Melodia Maszyny', handle: '@MelodiaMaszyny', lang: 'pl',
     url: 'https://youtube.com/@melodiamaszyny',
     tagline: 'Trap, metal i orkiestra. Motywacja, trening, siła.',
-    palette: { bg: '#0f0c09', bg2: '#1c140b', accent: '#e3b454', accent2: '#41d1f5' },
+    palette: { bg: '#090A0D', bg2: '#14171C', accent: '#D6B36A', accent2: '#2BB8C9' },
+    studio: { fx: { logo: true, flash: true, waves: true, particles: true } },
     stats: { subs: 22, hours: 49.8, views: 5776 },
     brand: { logo: 'assets/logos/melodia-emblem.png', fx: 'dust', slogan: '' },
     visual: 'epic cinematic photograph, dark teal and gold color grade, volumetric light, smoke and embers, heroic, hyperreal, 35mm, no text, no watermark',
@@ -98,7 +99,8 @@
     id: 'warhead', name: 'Warhead Bass', handle: '@WARHEAD_BASS', lang: 'en',
     url: 'https://www.youtube.com/@WARHEAD_BASS',
     tagline: 'Armed with bass. Built to break glass.',
-    palette: { bg: '#0b0b0d', bg2: '#2a2d33', accent: '#ff4a1c', accent2: '#ffb347' },
+    palette: { bg: '#090A0D', bg2: '#14171C', accent: '#FF7A1A', accent2: '#7C4DFF' },
+    studio: { fx: { logo: true, flash: true, waves: true, particles: true } },
     stats: { subs: 0, hours: 0, views: 0 },
     visual: 'dark cinematic photograph, black steel and molten orange glow, sparks and embers, heavy industrial atmosphere, volumetric smoke, hyperreal, 35mm, no text, no watermark',
     brand: { logo: 'assets/logos/warhead.png', fx: 'embers', slogan: 'Turn it up. Load the bar.' },
@@ -157,12 +159,12 @@
   App.DATA = {
     profiles: [melodia, warhead],
     presets: [
-      { n: 'Złoto i cyjan', bg: '#0f0c09', bg2: '#1c140b', accent: '#e3b454', accent2: '#41d1f5' },
-      { n: 'Zmierzch', bg: '#080c13', bg2: '#101a2a', accent: '#f2a65a', accent2: '#7fa9d6' },
-      { n: 'Karmin', bg: '#100809', bg2: '#240f14', accent: '#ff5a64', accent2: '#ffb27a' },
-      { n: 'Szmaragd', bg: '#07100d', bg2: '#0d2019', accent: '#4fe0a8', accent2: '#e6e27a' },
-      { n: 'Fiolet', bg: '#0b0912', bg2: '#1a1330', accent: '#a98bff', accent2: '#ff8bd2' },
-      { n: 'Lód', bg: '#0a0e12', bg2: '#13202b', accent: '#9fe3ff', accent2: '#e8f4ff' }
+      { n: 'Złoto i turkus', bg: '#090A0D', bg2: '#14171C', accent: '#D6B36A', accent2: '#2BB8C9' },
+      { n: 'Pomarańcz i fiolet', bg: '#090A0D', bg2: '#14171C', accent: '#FF7A1A', accent2: '#7C4DFF' },
+      { n: 'Karmin', bg: '#090A0D', bg2: '#14171C', accent: '#FF5A64', accent2: '#FFB27A' },
+      { n: 'Szmaragd', bg: '#090A0D', bg2: '#14171C', accent: '#3FD99B', accent2: '#E6E27A' },
+      { n: 'Fiolet', bg: '#090A0D', bg2: '#14171C', accent: '#A98BFF', accent2: '#FF8BD2' },
+      { n: 'Lód', bg: '#090A0D', bg2: '#14171C', accent: '#8FDCFF', accent2: '#5A7CFF' }
     ],
     structure: ['Intro', 'Verse 1', 'Pre-Chorus', 'Chorus', 'Verse 2', 'Chorus', 'Bridge', 'Final Chorus', 'Outro'],
     moods: [

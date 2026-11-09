@@ -43,6 +43,7 @@
           h('p', { class: 'muted small' }, 'Gdy masz wybraną wersję, kliknij Dalej.'));
       } else if (cur === 2) {
         const has = S.hasAudio(id), M = S.mem(id);
+        if (!has && s.mp3 && !M.restoreTried && !M.restoring) setTimeout(() => S.restore(id, render), 30);
         const fi = h('input', { type: 'file', accept: 'audio/*,.mp3,.wav,.m4a', onchange: async (e) => { const f = e.target.files[0]; if (!f) return; M.status = 'Analizuję utwór…'; render(); try { await S.loadFile(id, f); M.status = ''; s.done[2] = true; go(3); } catch (er) { M.status = 'Nie udało się wczytać pliku: ' + er.message; render(); } } });
         body = h('div', { class: 'stack' },
           ol(['W Suno otwórz wybraną piosenkę, dotknij ⋯ (trzy kropki) → Download → MP3 Audio.', 'Plik zapisze się na telefonie. Na iPhonie jest w aplikacji Pliki, w folderze Pobrane.', 'Wróć tutaj i kliknij poniżej, żeby wybrać ten plik.']),
@@ -52,7 +53,7 @@
           h('p', { class: 'muted small' }, 'Plik zostaje w pamięci aplikacji. Jeśli masz klucz Gemini, przy przygotowaniu teledysku nagranie jest jednorazowo wysyłane do Gemini, żeby spisać napisy ze słuchu. Nie jest nigdzie zapisywane przez aplikację.'));
       } else if (cur === 3) {
         body = h('div', { class: 'stack' },
-          ol(S.mode(s) === 'brand' ? ['Aplikacja spisuje napisy ze słuchu i generuje trzy tła. Poczekaj na koniec (do kilku minut).', 'Wybierz jedno tło, miniaturę 16:9 i miniaturę 9:16 (każda ma trzy propozycje).', 'Obejrzyj podgląd 15 sekund z dźwiękiem: logo pulsuje na stopę, w tle cząstki i fale.', 'Zrenderuj film 16:9 i Short 9:16 (trwa tyle, ile utwór, nie wychodź z aplikacji), potem zapisz plik albo wyślij na YouTube jako prywatny.'] : ['Kliknij „Przygotuj teledysk automatycznie”. Aplikacja ułoży sceny z tekstu, wygeneruje obrazy i dopasuje napisy.', 'Obejrzyj podgląd 15 sekund z dźwiękiem.', 'Zrenderuj film 16:9 i Short 9:16. Trwa tyle, ile utwór. Nie wychodź z aplikacji.', 'Zapisz plik albo od razu wyślij na YouTube jako prywatny.']),
+          h('p', { class: 'muted small' }, 'Analiza, napisy ze słuchu, wybór tła i efektów, podgląd, a na końcu render filmu 16:9 i Shorta 9:16. W czasie renderu nie wychodź z aplikacji.'),
           S.panel(id, render, true));
       } else if (cur === 4) {
         const pubV = s.publishAt || App.toLocalInput(App.nextAt(p.publish.time));

@@ -228,7 +228,7 @@
   S.makeRenderer = function (R) {
     if (R.mode === 'brand') return S.makeBrandRenderer(R);
     const { p, an, imgs, cuts } = R, pal = p.palette, pl = p.lang === 'pl';
-    const font = (px, w) => (w || 800) + ' ' + px + 'px "Bricolage Grotesque", system-ui, -apple-system, sans-serif';
+    const font = (px, w) => (w || 800) + ' ' + px + 'px "Manrope", "Inter", system-ui, -apple-system, sans-serif';
     const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; };
     const cutAt = (t) => { let lo = 0, hi = cuts.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (cuts[m].t0 <= t) lo = m; else hi = m - 1; } return lo; };
     function cover(ctx, im, W, H, zoom, ox, oy) {
@@ -306,7 +306,7 @@
     const g = ctx.createLinearGradient(0, H * (vertical ? 0.5 : 0.28), 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.82)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     const words = (R.thumbWords || R.title).toUpperCase().split(/\s+/).filter(Boolean).slice(0, 3);
     ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
-    const face = (px) => { ctx.font = '800 ' + px + 'px "Bricolage Grotesque", system-ui, sans-serif'; };
+    const face = (px) => { ctx.font = '800 ' + px + 'px "Manrope", "Inter", system-ui, sans-serif'; };
     if (vertical) {
       let px = 230; for (; px > 80; px -= 6) { face(px); if (Math.max(...words.map((w) => ctx.measureText(w).width)) < W - 150) break; }
       ctx.textAlign = 'center'; ctx.lineWidth = px * 0.14; ctx.strokeStyle = 'rgba(0,0,0,.9)';
@@ -431,7 +431,27 @@
     const M = S.mem(id), s = App.song(id);
     M.file = file; M.ab = await file.arrayBuffer(); M.buf = await S.decode(M.ab.slice(0)); M.an = S.analyze(M.buf); M.cuts = null; M.caps = null; M.exact = false; M.align = ''; M.plan = null; M.chorusText = null; M.generated = false; M.notes = []; M.prepared = false; M.autoStarted = false; M.heroes = null; M.heroSel = 0; M.tc = null; M.bass = S.bassTrack(M.buf, M.an);
     if (s.chorusAuto !== false) { s.chorusStart = mmss(M.an.chorus.start); s.chorusAuto = true; }
-    s.mp3 = file.name; App.save(); return M.an;
+    s.mp3 = file.name; s.audioSaved = false; App.save();
+    if (!M.fromDb && App.db) App.db.saveAudio(id, file).then(() => { s.audioSaved = true; s.audioSize = file.size; App.save(); }).catch(() => { s.audioSaved = false; });
+    M.fresh = !M.fromDb; M.fromDb = false; M.restoreTried = true;
+    return M.an;
+  };
+  /* plik zapisany w telefonie (IndexedDB): wczytaj go z powrotem po ponownym otwarciu aplikacji */
+  S.restore = async function (id, render) {
+    const M = S.mem(id), s = App.song(id);
+    if (M.an || M.restoring || M.restoreTried || !s || !s.mp3 || !App.db) return false;
+    M.restoring = true; M.status = 'Wczytuję zapisany plik „' + s.mp3 + '”…'; if (render) render();
+    try {
+      const a = await App.db.loadAudio(id);
+      if (a && a.blob) {
+        const f = new File([a.blob], a.name || s.mp3, { type: a.type || 'audio/mpeg' }); M.fromDb = true; await S.loadFile(id, f); s.audioSaved = true; M.status = '';
+        const ck = f.size + ':' + Math.round(M.an.dur * 10);
+        if (s.caps && s.caps.key === ck && s.caps.list && s.caps.list.length > 5) { M.caps = s.caps.list; M.exact = true; M.align = 'ze słuchu (zapisane)'; if (S.chorusFromCaps) { M.chorusText = S.chorusFromCaps(M.caps); } }
+        if (S.loadHeroes && await S.loadHeroes(id)) M.prepared = !!M.exact || !App.ai.hasKey();
+      }
+      else { M.status = ''; s.audioSaved = false; }
+    } catch (e) { M.status = 'Nie udało się wczytać zapisanego pliku: ' + e.message; }
+    M.restoring = false; M.restoreTried = true; if (render) render(); return !!M.an;
   };
   const capIdxAt = (caps, t) => { let k = -1; for (let i = 0; i < caps.length; i++) if (caps[i].t <= t) k = i; else break; return k; };
   S.mk = function (id) {
@@ -560,61 +580,97 @@
     const K = App.ui.kit, h = App.ui.h, icon = App.ui.icon, toast = App.ui.toast;
     const s = App.song(songId), p = App.profile(s.profileId), M = S.mem(songId);
     loadGsi().catch(() => {});
-    K.openSheet('Studio teledysku', (render) => S.panel(songId, render), { onClose: () => { App.save(); } });
+    K.openSheet('Studio teledysku', (render) => S.panel(songId, render), { icon: 'clap', onClose: () => { App.save(); } });
   };
   S.panel = function (songId, render, embedded) {
     loadGsi().catch(() => {});
     const K = App.ui.kit, h = App.ui.h, icon = App.ui.icon, toast = App.ui.toast;
     const s = App.song(songId), p = App.profile(s.profileId), M = S.mem(songId);
-    {
-      const hasAudio = !!M.an, key = App.ai.hasKey();
-      const fileIn = h('input', { type: 'file', accept: 'audio/*,.mp3,.wav,.m4a', onchange: async (e) => { const f = e.target.files[0]; if (!f) return; M.status = 'Analizuję utwór…'; render(); try { await S.loadFile(songId, f); M.status = ''; } catch (er) { M.status = 'Nie udało się wczytać pliku: ' + er.message; } render(); } });
-      const cv = h('canvas', { width: 640, height: 360, class: 'studio-cv' });
-      const out = h('div', { class: 'stack' });
-      const bar = h('div', { class: 'mt' }, h('i', { style: { width: '0%' } }));
-      const setBar = (v) => { bar.firstChild.style.width = Math.round(v * 100) + '%'; };
-      let busy = false;
-      const guard = (fn) => async (e) => { if (busy) return; busy = true; const b = e.currentTarget; b.disabled = true; try { await fn(); } catch (er) { toast(er.message || 'Błąd'); } busy = false; b.disabled = false; };
-      const showStill = () => { try { const R = S.mk(songId); S.makeRenderer(R)(cv.getContext('2d'), M.an.chorus.start + 0.3, null, { W: cv.width, H: cv.height, t0: 0, dur: M.an.dur }); } catch (er) { /* ignore */ } };
-      const renderTo = (short) => guard(async () => {
-        if (M.running) { toast('Trwa przygotowanie teledysku. Poczekaj na koniec.'); return; }
-        toast('Renderuję w czasie utworu. Nie wychodź z aplikacji.'); setBar(0);
-        const r = await S.renderVideo(songId, short, setBar); const url = URL.createObjectURL(r.blob);
-        out.textContent = '';
-        out.appendChild(h('video', { src: url, controls: true, playsinline: true, class: 'studio-cv', style: { aspectRatio: r.W + '/' + r.H, maxHeight: '60vh' } }));
-        out.appendChild(h('button', { class: 'btn big', onclick: () => S.save(r.blob, r.name, 'share').catch((er) => toast(er.message)) }, icon('copy', 18), 'Do galerii: Udostępnij → Zapisz wideo (' + Math.round(r.blob.size / 1e6) + ' MB)'));
-        out.appendChild(h('button', { class: 'btn big ghost', onclick: () => S.save(r.blob, r.name, 'file') }, icon('copy', 18), 'Zapisz w Plikach'));
-        out.appendChild(h('button', { class: 'btn big ghost', onclick: guard(async () => { toast('Zaloguj się i wybierz kanał: ' + p.name); const x = await S.sendPrivate(songId, r.blob, short, setBar); out.appendChild(h('p', { class: 'hint' }, 'Wysłano jako prywatny na kanał „' + x.channel + '”.' + (x.thumbErr ? ' ' + x.thumbErr : ''))); out.appendChild(h('a', { class: 'btn big', href: 'https://studio.youtube.com/video/' + x.id + '/edit', target: '_blank', rel: 'noopener' }, 'Otwórz w YouTube Studio')); }) }, icon('upload', 18), 'Wyślij na YouTube jako prywatny'));
-        toast('Gotowe');
-      });
-      const brand = S.mode(s) === 'brand';
-      if (hasAudio && (key || brand) && !M.prepared && !M.running && !M.autoStarted) { M.autoStarted = true; setTimeout(() => S.runPrepare(songId, render), 50); }
-      if (hasAudio) showStill();
-      return h('div', { class: 'stack' },
-        embedded ? null : h('p', { class: 'muted' }, 'Wczytaj mp3 z Suno. Aplikacja znajdzie tempo i refren, ułoży cięcia w rytm i dopasuje napisy. Wideo powstaje w tej przeglądarce, za darmo.'),
-        h('label', { class: 'btn big filebtn' }, icon('plus', 18), hasAudio ? 'Zmień plik mp3' : 'Wybierz plik mp3', fileIn),
-        null,
-        M.status ? h('p', { class: 'hint' }, M.status) : null,
-        hasAudio ? h('div', { class: 'stack' },
-          h('p', { class: 'muted small' }, 'Czas ' + mmss(M.an.dur) + ' · tempo ok. ' + Math.round(M.an.bpm) + ' bpm · Short od ' + mmss(S.shortWindow(songId).start) + (M.chorusText && s.chorusAuto !== false ? ' (refren z tekstu)' : s.chorusAuto === false ? ' (ustawiony ręcznie)' : ' (refren z dźwięku)') + ' · napisy: ' + (M.align || '—')),
-          (M.notes && M.notes.length) ? h('div', { class: 'warnbox' }, M.notes.map((n) => h('p', null, n))) : null,
-          (M.an.chorus.cands && M.an.chorus.cands.length) ? h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Początek Shorta, gdyby wyszedł zły fragment:'), h('div', { class: 'row-btns' }, M.an.chorus.cands.map((c) => h('button', { class: 'btn ghost', onclick: () => { s.chorusStart = mmss(c.t); s.chorusAuto = false; App.save(); render(); } }, mmss(c.t))))) : null,
-          h('p', { class: 'muted small' }, M.exact ? 'Napisy włączone: spisane ze słuchu, z dokładnymi czasami. Gdyby były przesunięte, użyj suwaka poniżej.' : (M.running ? 'Napisy włączone (na razie przybliżone, za chwilę zostaną dopasowane do nagrania).' : 'Napisy włączone, ale przybliżone: bez klucza Gemini nie da się ich dokładnie dopasować.')),
-          cv,
-          h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: () => S.runPrepare(songId, render) }, icon('spark', 18), M.prepared ? 'Przygotuj od nowa (napisy, sceny, obrazy)' : 'Przygotuj teledysk automatycznie'),
-            h('button', { class: 'btn ghost', onclick: guard(async () => { const R = S.mk(songId); setBar(0); await S.play(Object.assign({}, R, { cuts: S.shortCuts(R, M, S.shortWindow(songId)) }), cv, { start: S.shortWindow(songId).start, len: 15, record: false, onProgress: setBar }); showStill(); }) }, icon('refresh', 18), 'Podgląd 15 s z dźwiękiem')),
-          M.exact ? h('button', { class: 'btn ghost', onclick: () => S.runPrepare(songId, render, 'caps') }, icon('refresh', 18), 'Spisz napisy od nowa (gdyby były przesunięte)') : null,
-          bar,
-          brand ? h('div', { class: 'stack' }, S.brandBlocks(songId, render, guard, toast)) : null,
-          !brand && M.imgs.length ? h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Obrazy w teledysku. Dotknij, żeby wybrać kadr na miniaturę (zaznaczony):'), h('div', { class: 'thumbs' }, M.imgs.map((im, i) => { const c = document.createElement('canvas'); c.width = 160; c.height = 160; const w = im.naturalWidth || im.width, hh = im.naturalHeight || im.height; c.getContext('2d').drawImage(im, 0, 0, w, hh, 0, 0, 160, 160); c.className = 'thumb' + ((M.thumbIdx || 0) === i ? ' sel' : ''); c.onclick = () => { M.thumbIdx = i; render(); }; return c; }))) : null,
-          h('label', { class: 'field' }, h('span', { class: 'flabel' }, 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'), h('input', { type: 'range', min: -4, max: 4, step: 0.1, value: M.offset, oninput: (e) => { M.offset = +e.target.value; e.target.previousSibling.textContent = 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'; } })),
-          h('button', { class: 'btn big', onclick: renderTo(false) }, icon('play', 18), 'Zrenderuj film 16:9 (' + mmss(M.an.dur) + ')'),
-          h('button', { class: 'btn big ghost', onclick: renderTo(true) }, icon('play', 18), 'Zrenderuj Short 9:16 z refrenem'),
-          ...(brand ? [] : [
-          h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(S.mk(songId)); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '.jpg', 'share').catch(() => S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '.jpg', 'file')); }) }, icon('copy', 18), 'Miniatura 1280×720'),
-          h('button', { class: 'btn big ghost', onclick: guard(async () => { const b = await S.thumb(S.mk(songId), true); S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '_short_9x16.jpg', 'share').catch(() => S.save(b, (s.title || 'miniatura').replace(/[^\w\-]+/g, '_') + '_short_9x16.jpg', 'file')); }) }, icon('copy', 18), 'Miniatura Shorta 9:16 (1080×1920)')
-          ]),
-          out) : null);
+    if (!M.an && s.mp3 && !M.restoreTried && !M.restoring) { setTimeout(() => S.restore(songId, render), 30); }
+    const hasAudio = !!M.an, key = App.ai.hasKey();
+    const fileIn = h('input', { type: 'file', accept: 'audio/*,.mp3,.wav,.m4a', onchange: async (e) => { const f = e.target.files[0]; if (!f) return; M.status = 'Analizuję utwór…'; render(); try { await S.loadFile(songId, f); M.status = ''; M.fresh = true; } catch (er) { M.status = 'Nie udało się wczytać pliku: ' + er.message; } render(); } });
+    const fileBtn = h('label', { class: 'btn ' + (hasAudio ? 'ghost' : 'big') + ' filebtn' }, icon(hasAudio ? 'refresh' : 'plus', 18), hasAudio ? 'Zmień plik mp3' : 'Wybierz plik mp3', fileIn);
+    if (!hasAudio) return h('div', { class: 'stack' },
+      embedded ? null : h('p', { class: 'muted' }, 'Wczytaj mp3. Aplikacja znajdzie tempo, refren i uderzenia basu, a teledysk powstanie w tym telefonie, za darmo.'),
+      M.status ? h('p', { class: 'hint' }, M.status) : null, M.restoring ? null : fileBtn);
+
+    const cv = h('canvas', { width: 640, height: 360, class: 'studio-cv' });
+    const out = h('div', { class: 'stack' });
+    const bar = h('div', { class: 'mt' }, h('i', { style: { width: '0%' } }));
+    const setBar = (v) => { bar.firstChild.style.width = Math.round(v * 100) + '%'; };
+    let busy = false;
+    const guard = (fn) => async (e) => { if (busy) return; busy = true; const b = e.currentTarget; b.disabled = true; try { await fn(); } catch (er) { toast(er.message || 'Błąd'); } busy = false; b.disabled = false; };
+    const showStill = () => { try { const R = S.mk(songId); S.makeRenderer(R)(cv.getContext('2d'), M.an.chorus.start + 0.3, null, { W: cv.width, H: cv.height, t0: 0, dur: M.an.dur }); } catch (er) { /* ignore */ } };
+
+    /* kontrola przed renderem: czas, rozmiar, miejsce */
+    const preflight = async (short) => {
+      const len = short ? S.shortWindow(songId).len : M.an.dur, mbEst = Math.round(len * (short ? 0.75 : 0.95));
+      let free = null; try { const e = await navigator.storage.estimate(); free = (e.quota - e.usage) / 1048576; } catch (er) { /* brak danych */ }
+      const msg = 'Render ' + (short ? 'Shorta 9:16' : 'filmu 16:9') + ' potrwa ok. ' + mmss(len) + ' (tyle, ile ' + (short ? 'fragment' : 'utwór') + ').\nPlik: ok. ' + mbEst + ' MB.' + (free != null ? '\nWolne miejsce dla aplikacji: ok. ' + Math.round(free) + ' MB.' : '') + '\n\nNie wychodź z aplikacji i nie blokuj ekranu, bo nagrywanie się przerwie. Zacząć?';
+      if (free != null && free < mbEst * 2.5) { if (!confirm('Mało miejsca dla aplikacji (ok. ' + Math.round(free) + ' MB). Render może się nie udać.\n\n' + msg)) return false; return true; }
+      return confirm(msg);
+    };
+    const renderTo = (short) => guard(async () => {
+      if (M.running) { toast('Trwa przygotowanie teledysku. Poczekaj na koniec.'); return; }
+      if (!(await preflight(short))) return;
+      setBar(0);
+      const r = await S.renderVideo(songId, short, setBar); const url = URL.createObjectURL(r.blob);
+      M.rendered = M.rendered || {}; M.rendered[short ? 'short' : 'full'] = true; s.history = (s.history || []).concat({ at: Date.now(), x: 'Wyrenderowano ' + (short ? 'Short 9:16' : 'film 16:9') + ' (' + Math.round(r.blob.size / 1e6) + ' MB)' }); App.save();
+      out.textContent = '';
+      out.appendChild(h('video', { src: url, controls: true, playsinline: true, class: 'studio-cv', style: { aspectRatio: r.W + '/' + r.H, maxHeight: '60vh' } }));
+      out.appendChild(h('button', { class: 'btn big', onclick: () => S.save(r.blob, r.name, 'share').catch((er) => toast(er.message)) }, icon('download', 18), 'Do galerii: Udostępnij → Zapisz wideo (' + Math.round(r.blob.size / 1e6) + ' MB)'));
+      out.appendChild(h('button', { class: 'btn big ghost', onclick: () => S.save(r.blob, r.name, 'file') }, icon('download', 18), 'Zapisz w Plikach'));
+      out.appendChild(h('button', { class: 'btn big ghost', onclick: guard(async () => { toast('Zaloguj się i wybierz kanał: ' + p.name); const x = await S.sendPrivate(songId, r.blob, short, setBar); s.history = (s.history || []).concat({ at: Date.now(), x: 'Wysłano na YouTube jako prywatny (' + x.channel + ')' }); App.save(); out.appendChild(h('p', { class: 'hint' }, 'Wysłano jako prywatny na kanał „' + x.channel + '”.' + (x.thumbErr ? ' ' + x.thumbErr : ''))); out.appendChild(h('a', { class: 'btn big', href: 'https://studio.youtube.com/video/' + x.id + '/edit', target: '_blank', rel: 'noopener' }, 'Otwórz w YouTube Studio')); }) }, icon('upload', 18), 'Wyślij na YouTube jako prywatny (kanał ' + p.name + ')'));
+      toast('Gotowe'); render();
+    });
+
+    // automatyczne przygotowanie tylko po świeżym wgraniu pliku (nagranie idzie wtedy do Gemini); po wczytaniu z telefonu korzystamy z zapisanych napisów i teł
+    if (M.fresh && !M.prepared && !M.running && !M.autoStarted) { M.autoStarted = true; setTimeout(() => S.runPrepare(songId, render), 50); }
+    showStill();
+
+    /* stan kroków: 1 Analiza, 2 Napisy, 3 Tła, 4 Render */
+    const st1 = !!M.an, st2 = !!M.prepared || !!M.exact, st3 = !!(M.heroes && M.heroes.length && M.heroPicked), st4 = !!(M.rendered && (M.rendered.full || M.rendered.short));
+    const flags = [st1, st2, st3, st4], cur = M.running ? 1 : flags.findIndex((x) => !x);
+    const names = ['Analiza', 'Napisy', 'Tła', 'Render'];
+    const steps = h('div', { class: 'steps4' });
+    names.forEach((n, i) => { if (i) steps.appendChild(h('i', { class: 'ln' + (flags[i - 1] ? ' done' : '') })); steps.appendChild(h('div', { class: 's' + (i === cur ? ' on' : flags[i] ? ' done' : '') }, h('b', null, flags[i] && i !== cur ? icon('check', 16, 2.4) : String(i + 1)), h('span', null, n))); });
+
+    const fx = (p.studio = p.studio || { fx: {} }).fx = Object.assign({ logo: true, flash: true, waves: true, particles: true }, (p.studio || {}).fx);
+    const tg = (k, ic, label) => h('label', { class: 'tg' }, icon(ic, 22, 1.6), h('span', null, label), h('input', { type: 'checkbox', checked: fx[k] !== false, onchange: (e) => { fx[k] = e.target.checked; App.save(); showStill(); } }));
+
+    let heroesBlock = null;
+    if (M.heroes && M.heroes.length) {
+      const sel = Math.min(M.heroSel || 0, M.heroes.length - 1), order = [sel].concat(M.heroes.map((_, i) => i).filter((i) => i !== sel));
+      heroesBlock = h('div', { class: 'stack' }, h('h3', null, 'Wybierz tło'),
+        h('div', { class: 'bgpick' }, order.map((i, k) => { const c = S.small(M.heroes[i], k === 0 ? 720 : 360); return h('div', { class: 'im' + (k === 0 ? ' big' : '') + (k === 0 && M.heroPicked ? ' sel' : ''), onclick: () => { M.heroSel = i; M.heroPicked = true; M.tc = null; S.saveHeroSel(songId); render(); } }, c, k === 0 && M.heroPicked ? h('span', { class: 'chk' }, icon('check', 18, 2.6)) : null); })),
+        M.heroPicked ? null : h('p', { class: 'muted small' }, 'Dotknij duże zdjęcie, żeby je zatwierdzić, albo mniejsze, żeby je wybrać.'),
+        h('button', { class: 'btn ghost sm', disabled: M.running ? 'true' : null, onclick: () => S.newHeroes(songId, render) }, icon('refresh', 16), 'Wygeneruj inne 3 tła'));
     }
+    const cands = (M.an.chorus.cands || []);
+    return h('div', { class: 'stack' },
+      steps,
+      h('p', { class: 'techline' }, 'Czas ', h('b', null, mmss(M.an.dur)), ' · tempo ', h('b', null, Math.round(M.an.bpm) + ' BPM'), ' · Short od ', h('b', null, mmss(S.shortWindow(songId).start)), ' · napisy: ', h('b', null, M.align || '—')),
+      M.status ? h('p', { class: 'hint' }, M.status) : null,
+      (M.notes && M.notes.length) ? h('div', { class: 'warnbox' }, M.notes.map((n) => h('p', null, n))) : null,
+      !M.prepared && !M.running ? h('div', { class: 'stack' },
+        h('button', { class: 'btn big' + (key ? ' ai' : ''), onclick: () => S.runPrepare(songId, render) }, icon('spark', 20), 'Przygotuj teledysk'),
+        h('p', { class: 'muted small' }, key ? 'Gemini jednorazowo wysłucha nagrania (napisy ze słuchu) i zaprojektuje 3 tła. Nagranie nie jest nigdzie zapisywane.' : 'Bez klucza Gemini napisy będą przybliżone, a tła powstaną ze scen domyślnych kanału.')) : null,
+      heroesBlock,
+      h('h3', null, 'Animacja i efekty'),
+      h('div', { class: 'tgl' }, tg('logo', 'pulse', 'Pulsujące logo rytmem'), tg('flash', 'flash', 'Błyski na uderzeniach'), tg('waves', 'waves', 'Fale uderzeniowe'), tg('particles', 'dust', 'Cząstki (pył/iskry)')),
+      h('p', { class: 'muted small' }, 'Ustawienia efektów zapisują się dla kanału ' + p.name + '.'),
+      cv,
+      h('button', { class: 'btn big', onclick: guard(async () => { const R = S.mk(songId); setBar(0); await S.play(R, cv, { start: S.shortWindow(songId).start, len: 15, record: false, onProgress: setBar }); showStill(); }) }, icon('play', 20), 'Podgląd 15 s'),
+      bar,
+      h('details', { class: 'phase' }, h('summary', null, h('b', null, 'Miniatury'), h('span', { class: 'muted small' }, '3 + 3 propozycje')), h('div', { class: 'stack', style: { padding: '6px 0 12px' } }, S.brandBlocks(songId, render, guard, toast))),
+      h('details', { class: 'phase' }, h('summary', null, h('b', null, 'Napisy i fragment Shorta'), h('span', { class: 'muted small' }, M.exact ? 'ze słuchu' : 'przybliżone')), h('div', { class: 'stack', style: { padding: '6px 0 12px' } },
+        h('label', { class: 'field' }, h('span', { class: 'flabel' }, 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'), h('input', { type: 'range', min: -4, max: 4, step: 0.1, value: M.offset, oninput: (e) => { M.offset = +e.target.value; e.target.previousSibling.textContent = 'Przesunięcie napisów: ' + M.offset.toFixed(1) + ' s'; } })),
+        key ? h('button', { class: 'btn ghost', onclick: () => S.runPrepare(songId, render, 'caps') }, icon('refresh', 18), 'Spisz napisy od nowa (Gemini)') : null,
+        cands.length ? h('div', { class: 'stack' }, h('span', { class: 'flabel' }, 'Początek Shorta, gdyby wyszedł zły fragment:'), h('div', { class: 'chips' }, cands.map((c) => K.chip(mmss(c.t), s.chorusStart === mmss(c.t), () => { s.chorusStart = mmss(c.t); s.chorusAuto = false; App.save(); render(); })))) : null)),
+      h('h3', null, 'Render'),
+      h('button', { class: 'btn big', onclick: renderTo(false) }, icon('film', 20), 'Zrenderuj film 16:9 (' + mmss(M.an.dur) + ')'),
+      h('button', { class: 'btn big ghost', onclick: renderTo(true) }, icon('film', 20), 'Zrenderuj Short 9:16 z refrenu'),
+      out,
+      fileBtn);
   };
 })();

@@ -53,7 +53,11 @@
     if (b.regions) { const RV = key(b.regions, /^Wyświetlenia$/), sm = b.regions.find((r) => r['Region'] === 'Suma'); a.regionTotal = sm ? num(sm[RV]) : 0; a.regions = b.regions.filter((r) => r['Region'] !== 'Suma').map((r) => ({ k: r['Region'], views: num(r[RV]) })).filter((x) => x.views > 0); }
     if (b.genders) { const m = b.genders.find((r) => /Mężczyźni/.test(r['Płeć widza'])); a.male = m ? num(m[key(b.genders, /^Wyświetlenia \(%\)/)]) : null; }
     if (b.ages && b.ages.length > 2) a.ages = b.ages.map((r) => ({ k: r['Wiek widza'], views: num(r[key(b.ages, /^Wyświetlenia \(%\)/)]), hours: num(r[key(b.ages, /^Czas oglądania/)]), avp: num(r[key(b.ages, /^Średni procent/)]) }));
-    if (b.daily) { a.days = b.daily.length; }
+    if (b.daily) {
+      a.days = b.daily.length;
+      const r0 = b.daily, DV = key(r0, /^Wyświetlenia$/), DH = key(r0, /^Czas oglądania \(w\s*godzinach\)/), DS = key(r0, /^Subskrybenci$/), DA = key(r0, /^Średni procent/), DI = key(r0, /^Wyświetlenia miniatury/), DC = key(r0, /^Współczynnik klikalności/);
+      a.daily = r0.filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r['Data'] || '')).sort((x, y) => (x['Data'] < y['Data'] ? -1 : 1)).map((r) => ({ d: r['Data'], views: num(r[DV]), min: num(r[DH]) * 60, subs: num(r[DS]), avp: num(r[DA]), impr: DI ? num(r[DI]) : null, ctr: DC ? num(r[DC]) : null }));
+    }
     const months = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
     const dates = videos.map((x) => { const m = /(\w{3}) (\d+), (\d{4})/.exec(x.date); return m ? new Date(+m[3], months[m[1]], +m[2]).getTime() : 0; }).filter(Boolean);
     a.firstUpload = dates.length ? Math.min.apply(null, dates) : 0; a.lastUpload = dates.length ? Math.max.apply(null, dates) : 0;

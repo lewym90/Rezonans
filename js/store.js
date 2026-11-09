@@ -1,7 +1,7 @@
 (function () {
   const App = (window.App = window.App || {});
   const KEY = 'rezonans.v1';
-  App.version = 46;
+  App.version = 47;
   App.uid = (p) => (p || 'id') + '_' + Math.random().toString(36).slice(2, 9);
   App.state = {
     profiles: [], songs: [], activeProfile: 'melodia', tab: 'today',
@@ -11,8 +11,9 @@
   App.save = function () {
     try {
       const s = App.state;
-      localStorage.setItem(KEY, JSON.stringify({ profiles: s.profiles, songs: s.songs, settings: s.settings, activeProfile: s.activeProfile, quick: s.quick }));
-    } catch (e) { /* storage unavailable */ }
+      localStorage.setItem(KEY, JSON.stringify({ schema: s.schema, profiles: s.profiles, songs: s.songs, settings: s.settings, activeProfile: s.activeProfile, quick: s.quick }));
+      App.saveFailed = false;
+    } catch (e) { App.saveFailed = true; }
   };
   App.load = function () {
     let raw = null;
@@ -28,6 +29,9 @@
     });
     if (!App.state.profiles.find((p) => p.id === App.state.activeProfile)) App.state.activeProfile = App.state.profiles[0].id;
     App.state.settings = Object.assign({ gemini: '', yt: '', model: 'gemini-3.8-flash', img: 'https://rezonans-img.lewandowski-m-90.workers.dev/', ytClient: '43164945118-f2o3h3ko4vamm6oj27m2ajm8819p5okc.apps.googleusercontent.com' }, App.state.settings || {});
+    // migracja schematu: najpierw kopia w telefonie, potem zmiany
+    if (!raw) App.state.schema = App.schema;
+    if (App.migrate && (App.state.schema || 1) < App.schema) { App.preMigrate = raw; App.migrate(App.state); App.save(); }
   };
   App.profile = (id) => App.state.profiles.find((p) => p.id === (id || App.state.activeProfile)) || App.state.profiles[0];
   App.songsOf = (pid) => App.state.songs.filter((s) => s.profileId === (pid || App.state.activeProfile));
