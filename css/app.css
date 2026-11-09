@@ -400,3 +400,10 @@ input[type=time], input[type=datetime-local] { -webkit-appearance: none; appeara
 .ytp b { font: 600 14px/1.25 'Inter', system-ui; color: #f1f1f1; } .ytp span { font-size: 12px; color: #aaa; }
 .ytrow.small .ytp b { font-size: 12px; } .ytrow.small .ytp span { font-size: 11px; }
 .ytd { position: absolute; right: 5px; bottom: 5px; padding: 1px 4px; border-radius: 4px; background: rgba(0,0,0,.8); color: #fff; font: 600 11px 'Inter', system-ui; }
+
+.cmpt { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 0; border-radius: 14px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
+.cmpt .ch, .cmpt .cr { display: contents; }
+.cmpt .ch > *, .cmpt .cr > * { padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.cmpt .ch b { font: 600 12px var(--f-ui); color: var(--ink2); }
+.cmpt .cr b { font-size: 12.5px; } .cmpt .cr b.win { color: var(--good); }
+.cmpt .why { padding: 8px 10px; margin: 0; }

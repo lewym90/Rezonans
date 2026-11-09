@@ -176,6 +176,22 @@
       h('ul', { class: 'mcl' }, r.items.map((i) => h('li', { class: i.lvl }, h('span', { class: 'dot' }), h('div', null, h('div', { class: 'mh' }, h('span', null, i.k), h('b', { class: 'num' }, i.v)), h('p', null, i.x))))),
       h('div', { class: 'bands' }, m.bands.map((b) => h('div', null, h('i', { style: { height: Math.max(3, Math.min(100, b.pct * 1.6)) + '%' } }), h('span', null, b.n.split(' ').map((w) => w[0]).join('').toUpperCase())))),
       h('p', { class: 'why' }, 'Pasma: S sub, B bas, NŚ niski środek, Ś środek, WŚ wysoki środek, G góra, P powietrze. Zakresy dla kanału ' + p.name + ': ' + r.target.lufs[0] + ' do ' + r.target.lufs[1] + ' LUFS, True Peak do ' + r.target.tp + ' dBTP. To wskazówki, nie jedna norma dla wszystkich.'),
-      h('button', { class: 'btn ghost sm', disabled: M.an ? null : 'true', onclick: go }, icon('refresh', 16), M.an ? 'Zmierz ponownie' : 'Wczytaj plik, żeby zmierzyć ponownie'));
+      h('button', { class: 'btn ghost sm', disabled: M.an ? null : 'true', onclick: go }, icon('refresh', 16), M.an ? 'Zmierz ponownie' : 'Wczytaj plik, żeby zmierzyć ponownie'),
+      MC.compareBlock(songId, render));
+  };
+
+  /* porównanie dwóch wersji utworu (np. przed i po masteringu, dwie wersje z Suno) */
+  MC.compareBlock = function (songId, render) {
+    const UI = App.ui, h = UI.h, icon = UI.icon, s = App.song(songId), p = App.profile(s.profileId), M = App.studio.mem(songId), a = s.master && s.master.m, b = M.cmp;
+    const fi = h('input', { type: 'file', accept: 'audio/*,.mp3,.wav,.m4a', onchange: async (e) => { const f = e.target.files[0]; if (!f) return; M.cmpBusy = true; render(); try { const buf = await App.studio.decode(await f.arrayBuffer()); M.cmp = Object.assign(MC.measure(buf), { name: f.name }); } catch (er) { UI.toast('Nie udało się wczytać pliku: ' + er.message); } M.cmpBusy = false; render(); } });
+    const rows = [['Głośność', 'lufs', ' LUFS', 0], ['True Peak', 'tp', ' dBTP', -1], ['Dynamika', 'plr', ' dB', 1], ['LRA', 'lra', ' LU', 1], ['Korelacja', 'corr', '%', 0], ['Bas (do 250 Hz)', 'bass', '%', 0], ['Górna granica', 'cutoff', ' kHz', 1], ['Długość', 'dur', ' s', 0]];
+    const val = (m, k) => (k === 'bass' ? m.bands[0].pct + m.bands[1].pct : k === 'corr' ? m.corr * 100 : k === 'cutoff' ? m.cutoff / 1000 : m[k]);
+    return h('div', { class: 'stack', style: { marginTop: '6px' } },
+      h('label', { class: 'btn ghost sm filebtn' }, icon('sliders', 16), M.cmpBusy ? 'Mierzę drugą wersję…' : b ? 'Porównaj z innym plikiem' : 'Porównaj z inną wersją pliku', fi),
+      a && b ? h('div', { class: 'cmpt' },
+        h('div', { class: 'ch' }, h('span'), h('b', null, 'Ta wersja'), h('b', null, (b.name || 'Druga').slice(0, 18))),
+        rows.map((r) => { const x = val(a, r[1]), y = val(b, r[1]); const better = r[3] === 0 || x == null || y == null ? '' : (r[3] > 0 ? (y > x + 0.3 ? 'b' : x > y + 0.3 ? 'a' : '') : (y < x - 0.3 ? 'b' : x < y - 0.3 ? 'a' : ''));
+          return h('div', { class: 'cr' }, h('span', null, r[0]), h('b', { class: 'num' + (better === 'a' ? ' win' : '') }, f1(x) + r[2]), h('b', { class: 'num' + (better === 'b' ? ' win' : '') }, f1(y) + r[2])); }),
+        h('p', { class: 'why', style: { gridColumn: '1 / -1' } }, 'Zielone: lepszy wynik technicznie (więcej dynamiki, niższy True Peak, szersze pasmo). To pomiar, nie ocena, która wersja lepiej brzmi.')) : null);
   };
 })();

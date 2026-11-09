@@ -83,6 +83,12 @@ Ustawienia → Pobierz kopię. Dane (kanały, utwory) są w localStorage tej prz
 - Intelligence (Wyniki): porównanie wyników utworów według wejścia wokalu, długości, pierwszego refrenu, tempa, długości tytułu, godziny premiery i stylu. Każda rekomendacja ma źródło, liczbę utworów, okres, poziom pewności i ograniczenia.
 - Experiment Lab (Wyniki): hipoteza, warianty A i B z przypisanymi utworami, miara, automatyczny wynik z ostrzeżeniem o małej próbie, wniosek; tytuły i miniatury przez „Testuj i porównaj” w YouTube.
 
+## Wersja 53: Library, serie i albumy
+- Biblioteka zasobów (Kanały): utwory, teksty, prompty i style, grafiki, miniatury, presety, filmy na YouTube, szablony opisu; wyszukiwarka i filtry (typ, kanał, wykorzystanie).
+- Serie, EP i albumy (Utwory): koncepcja, plan utworów, przypisane utwory, postęp publikacji; generator w Pomyśle („Seria / EP”) z DNA kanału albo z Gemini.
+- W kartach pomysłów: 5 struktur utworu do skopiowania (lokalnie) i 3 alternatywne refreny (Gemini, na kliknięcie). Widownia kanału z prawdziwych danych przy ocenie pomysłu.
+- Szablony opisu kanału ({tytuł}, {kanał}); porównanie dwóch wersji pliku w Audio Master Check.
+
 ## Historia zmian (skrót)
 - v29: zawsze nowy tekst do analizowanego utworu, układ na tablet i laptop.
 - v30: Warhead Bass zamiast Willa Hayes, teledysk w stylu marki, miniatury 3+3, ścieżka „Mam gotowy utwór”.

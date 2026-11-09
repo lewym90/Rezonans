@@ -367,7 +367,8 @@
     const root = h('div', { class: 'screen' });
     root.appendChild(topbar('Pomysł', 'Dla kanału ' + p.name));
     root.appendChild(h('div', { class: 'seg', role: 'tablist' },
-      ['own', 'surprise'].map((m) => h('button', { role: 'tab', 'aria-selected': ui.ideaMode === m ? 'true' : 'false', class: ui.ideaMode === m ? 'on' : '', onclick: () => { ui.ideaMode = m; ui.result = null; UI.render(); } }, m === 'own' ? 'Mam pomysł' : 'Zaskocz mnie'))));
+      ['own', 'surprise', 'series'].map((m) => h('button', { role: 'tab', 'aria-selected': ui.ideaMode === m ? 'true' : 'false', class: ui.ideaMode === m ? 'on' : '', onclick: () => { ui.ideaMode = m; ui.result = null; UI.render(); } }, m === 'own' ? 'Mam pomysł' : m === 'surprise' ? 'Zaskocz mnie' : 'Seria / EP'))));
+    if (ui.ideaMode === 'series') { App.gen2.seriesView(root); return root; }
     const out = h('div', { id: 'ideaOut' });
     if (ui.ideaMode === 'own') {
       const ta = h('textarea', { rows: 3, placeholder: p.lang === 'pl' ? 'Np. motywacja, siła, trening, nigdy się nie poddawaj' : 'E.g. lift, drive, destroy. Night highway and heavy sub bass.', value: ui.text || '', oninput: (e) => { ui.text = e.target.value; } });
@@ -418,6 +419,7 @@
         h('div', { class: 'fit' }, fitRing(v), h('p', null, verdict)),
         h('h3', null, 'Dlaczego to zadziała?'),
         h('ul', { class: 'whyl' }, r.score.checks.map((c) => h('li', { class: c.ok ? 'ok' : 'no' }, h('span', { class: 'ci' }, icon(c.ok ? 'check' : 'warn', c.ok ? 14 : 20, 2.4)), h('span', null, c.x)))),
+        App.gen2.audience(App.profile()) ? h('p', { class: 'muted small', style: { marginTop: '10px' } }, h('b', null, 'Widownia kanału (dane ze Studio): '), App.gen2.audience(App.profile()) + '. Pisz pod tę grupę.') : null,
         h('p', { class: 'why' }, 'Ocena liczona w telefonie z DNA kanału, bez AI.')),
       h('section', { class: 'card' }, h('div', { class: 'card-h' }, icon('brain', 22, 1.6), h('h3', null, 'DNA Track: podobieństwo')),
         App.dna.simBox(App.dna.similar(App.profile(), { title: first ? first.title : '', text: (App.state.ui.text || '') + ' ' + (first ? first.premise || '' : ''), symbol: first && first.symbol }))),
@@ -431,6 +433,7 @@
       h('h4', null, idea.title), h('p', { class: 'premise' }, idea.premise),
       h('div', { class: 'chips' }, idea.symbol ? h('span', { class: 'tag' }, idea.symbol) : null, v ? h('span', { class: 'tag' }, v.name) : null, idea.shout ? h('span', { class: 'tag' }, 'okrzyk: ' + idea.shout + '!') : null),
       h('details', null, h('summary', null, 'Dlaczego to powinno zadziałać'), h('ul', null, reasons.map((x) => h('li', null, x)))),
+      App.gen2.ideaExtras(idea),
       h('button', { class: 'btn', onclick: () => openBuilder(idea) }, icon('note', 18), 'Zbuduj dla Suno'));
   }
   /* ---------- kreator Suno ---------- */
@@ -478,7 +481,7 @@
         h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: st.clean, onchange: (e) => { st.clean = e.target.checked; } }), h('span', null, 'Czysta wersja bez wulgaryzmów w prompcie')),
         h('button', { class: 'btn big', onclick: () => {
           const s = { sunoVer: [{ at: Date.now(), label: st.styleName, styles: st.style }], lyricsVer: [{ at: Date.now(), text: st.lyrics, src: 'szkic' }], history: [{ at: Date.now(), x: 'Utworzony z pomysłu „' + idea.title + '”' }], id: App.uid('song'), profileId: p.id, title: st.title, premise: idea.premise, variantId: st.variant, styleName: st.styleName, styleSig: st.sig, style: st.style, lyrics: st.lyrics, symbol: idea.symbol, scenes: idea.scenes || [], status: 'suno', created: Date.now(), checks: {}, results: {} };
-          App.state.songs.push(s); s.step = 1; App.save(); closeSheet(); App.state.ui = {}; UI.go('songs'); setTimeout(() => App.wizard.open(s.id, 1), 260);
+          s.ideaId = idea.id; { const pp = (App.state.ui || {}).pendingProject; if (pp) { s.ideaId = pp.ideaId; const pr = App.projects.list().find((x) => x.id === pp.pid); if (pr && !pr.songs.includes(s.id)) pr.songs.push(s.id); } } App.state.songs.push(s); s.step = 1; App.save(); closeSheet(); App.state.ui = {}; UI.go('songs'); setTimeout(() => App.wizard.open(s.id, 1), 260);
         } }, 'Zapisz utwór'));
     });
     if (AI.hasKey() && /\[(Verse 1)\]\s*\n\s*\n/.test(st.lyrics)) setTimeout(writeLyrics, 150);
@@ -517,7 +520,7 @@
         h('button', { class: 'btn big', onclick: () => {
           const sunoVer = pk.variants.map((x) => ({ at: Date.now(), label: x.label, styles: x.styles, exclude: x.exclude, weirdness: x.weirdness, influence: x.influence }));
           const s = { sunoVer, lyricsVer: [{ at: Date.now(), text: pk.lyrics, src: 'Gemini' }], history: [{ at: Date.now(), x: 'Utworzony z pomysłu „' + idea.title + '” (pakiet Gemini, wariant ' + v.label + ')' }], id: App.uid('song'), profileId: p.id, title: st.title, premise: idea.premise, variantId: idea.branch || (p.styleVariants[0] || {}).id, styleName: (E.variantOf(p, idea.branch) || {}).name || v.styles.split(',')[0], styleSig: v.styles.split(',').slice(0, 5).map((x) => x.trim()), style: v.styles, exclude: v.exclude, weirdness: v.weirdness, influence: v.influence, tip: pk.tip, lyrics: pk.lyrics, symbol: idea.symbol, scenes: idea.scenes || [], status: 'suno', created: Date.now(), checks: {}, results: {} };
-          App.state.songs.push(s); s.step = 1; App.save(); closeSheet(); App.state.ui = {}; UI.go('songs'); setTimeout(() => App.wizard.open(s.id, 1), 260);
+          s.ideaId = idea.id; { const pp = (App.state.ui || {}).pendingProject; if (pp) { s.ideaId = pp.ideaId; const pr = App.projects.list().find((x) => x.id === pp.pid); if (pr && !pr.songs.includes(s.id)) pr.songs.push(s.id); } } App.state.songs.push(s); s.step = 1; App.save(); closeSheet(); App.state.ui = {}; UI.go('songs'); setTimeout(() => App.wizard.open(s.id, 1), 260);
         } }, 'Zapisz utwór i prowadź dalej'));
     });
     setTimeout(run, 60);
@@ -578,7 +581,9 @@
       h('button', { class: 'tile a', style: { minHeight: '84px' }, onclick: () => { App.state.ui = { ideaMode: 'own' }; UI.go('ideas'); } }, icon('bulb', 28, 1.6), 'Nowy pomysł'),
       h('button', { class: 'tile b', style: { minHeight: '84px' }, onclick: () => App.own.open() }, icon('note', 28, 1.8), 'Mam gotowy utwór')));
     if (!songs.length) root.appendChild(h('div', { class: 'emptystate' }, h('b', null, 'Brak utworów w tym kanale'), h('p', null, 'Zacznij od pomysłu albo wgraj utwór, który już masz.')));
-    else { const rc = releaseControl(p); if (rc) root.appendChild(rc); root.appendChild(h('h3', { class: 'sec', style: { padding: '0 16px' } }, 'Wszystkie utwory')); }
+    else { const rc = releaseControl(p); if (rc) root.appendChild(rc); }
+    root.appendChild(App.projects.block(p));
+    if (songs.length) root.appendChild(h('h3', { class: 'sec', style: { padding: '0 16px' } }, 'Wszystkie utwory'));
     if (songs.length) root.appendChild(h('div', { class: 'list' }, songs.map((s) => {
       const r = release(p, s), done = r.items.filter((i) => i.done).length, st = App.wizard.stepOf(s);
       return h('button', { class: 'row link', onclick: () => openSong(s.id) },
@@ -638,6 +643,8 @@
         h('p', { class: 'flabel' }, 'Opis'), desc,
         h('div', { class: 'row-btns' }, h('button', { class: 'btn', onclick: () => copy(desc.value, 'Opis skopiowany') }, icon('copy', 18), 'Kopiuj opis'),
           AI.hasKey() ? h('button', { class: 'btn ghost', onclick: async (e) => { const b = e.currentTarget; b.disabled = true; try { desc.value = await AI.refinePack(p, s, pack); toast('Opis ulepszony'); } catch (er) { toast(er.message); } b.disabled = false; } }, icon('spark', 18), 'Ulepsz (Gemini)') : null),
+        h('div', { class: 'chips' }, (p.descTpl || []).map((t) => chip('Szablon: ' + t.n, false, () => { desc.value = t.text.replace(/\{tytuł\}/g, s.title || '').replace(/\{kanał\}/g, p.name); toast('Wstawiono szablon. Skopiuj opis.'); })),
+          h('button', { class: 'btn ghost sm', onclick: () => { const n = prompt('Nazwa szablonu opisu (w tekście możesz użyć {tytuł} i {kanał}):'); if (!n) return; p.descTpl = (p.descTpl || []).concat({ n: n.trim().slice(0, 30), text: desc.value.split(s.title || '\u0000').join('{tytuł}'), at: Date.now() }); App.save(); toast('Szablon zapisany'); render(); } }, icon('plus', 16), 'Zapisz opis jako szablon')),
         h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: !!s.includeLyrics, onchange: (e) => { s.includeLyrics = e.target.checked; save(); render(); } }), h('span', null, 'Dołącz tekst piosenki do opisu')),
         h('p', { class: 'flabel' }, 'Hashtagi (trzy pierwsze widać nad tytułem)'), row(pack.hashtags),
         h('p', { class: 'flabel' }, 'Tagi'), row(pack.tags.join(', ')),
@@ -664,6 +671,7 @@
   UI.copy = copy;
   UI.kit = { openSheet, closeSheet, field, chip, copyBtn };
   UI.release = release;
+  UI.openBuilder = (idea) => openBuilder(idea);
 
   /* ================= WYNIKI I ROZWÓJ ================= */
   function openAnalyticsImport(p) {
@@ -825,6 +833,7 @@
         h('span', { style: { display: 'flex', gap: '4px' } }, h('i', { style: { width: '12px', height: '12px', borderRadius: '50%', background: p.palette.accent } }), h('i', { style: { width: '12px', height: '12px', borderRadius: '50%', background: p.palette.accent2 } })));
     })));
     root.appendChild(h('div', { class: 'row-btns pad', style: { marginTop: '14px' } }, h('button', { class: 'btn', onclick: () => App.dna.open(App.state.activeProfile) }, icon('brain', 18), 'DNA Track: ' + App.profile().name)));
+    root.appendChild(h('div', { class: 'row-btns pad' }, h('button', { class: 'btn ghost', onclick: () => App.library.open() }, icon('db', 18), 'Biblioteka zasobów')));
     root.appendChild(h('div', { class: 'row-btns pad' }, h('button', { class: 'btn ghost', onclick: openImport }, icon('link', 18), 'Importuj kanał z YouTube')));
     root.appendChild(h('div', { class: 'row-btns pad' }, h('button', { class: 'btn ghost', onclick: () => openData() }, icon('db', 18), 'Kopia i dane'), h('button', { class: 'btn ghost', onclick: () => openSettings() }, icon('gear', 18), 'Ustawienia')));
     return root;

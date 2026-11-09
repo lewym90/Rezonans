@@ -1,7 +1,7 @@
 (function () {
   const App = (window.App = window.App || {});
   const KEY = 'rezonans.v1';
-  App.version = 52;
+  App.version = 53;
   App.uid = (p) => (p || 'id') + '_' + Math.random().toString(36).slice(2, 9);
   App.state = {
     profiles: [], songs: [], activeProfile: 'melodia', tab: 'today',
@@ -11,7 +11,7 @@
   App.save = function () {
     try {
       const s = App.state;
-      localStorage.setItem(KEY, JSON.stringify({ schema: s.schema, profiles: s.profiles, songs: s.songs, settings: s.settings, activeProfile: s.activeProfile, quick: s.quick, lib: s.lib }));
+      localStorage.setItem(KEY, JSON.stringify({ schema: s.schema, profiles: s.profiles, songs: s.songs, settings: s.settings, activeProfile: s.activeProfile, quick: s.quick, lib: s.lib, projects: s.projects }));
       App.saveFailed = false;
     } catch (e) { App.saveFailed = true; }
   };

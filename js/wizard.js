@@ -51,7 +51,7 @@
           M.status ? h('p', { class: 'hint' }, M.status) : null,
           has ? h('div', { class: 'okbox' }, h('b', null, 'Plik wczytany: ' + (s.mp3 || '')), h('p', { class: 'muted small' }, 'Tempo ok. ' + Math.round(M.an.bpm) + ' BPM. Plik zapisany w telefonie.')) : null,
           has ? h('div', { class: 'stack' }, h('h3', null, 'Audio Master Check'), App.master.view(id, render)) : null,
-          h('p', { class: 'muted small' }, 'Plik zostaje w pamięci aplikacji. Jeśli masz klucz Gemini, przy przygotowaniu teledysku nagranie jest jednorazowo wysyłane do Gemini, żeby spisać napisy ze słuchu. Nie jest nigdzie zapisywane przez aplikację.'));
+          h('p', { class: 'muted small' }, 'Plik jest zapisany tylko w tym telefonie. Do Gemini trafia jednorazowo dopiero przy „Przygotuj teledysk” (napisy ze słuchu) i nie jest tam przechowywany przez aplikację.'));
       } else if (cur === 3) {
         body = h('div', { class: 'stack' },
           h('p', { class: 'muted small' }, 'Analiza, napisy ze słuchu, wybór tła i efektów, podgląd, a na końcu render filmu 16:9 i Shorta 9:16. W czasie renderu nie wychodź z aplikacji.'),
